@@ -621,6 +621,13 @@ workbooks in a folder, corrupt and empty files, wrong file names, metadata
 conflicts, bad folder names); the command prints the list. It also writes
 `Stress_Reference.xlsx`, a limits workbook with a few deliberately bad rows.
 
+## Roadmap
+
+Open questions, things still to verify, and features that were suggested but
+not built are in [ROADMAP.md](ROADMAP.md). A rough plan for moving the data
+into a SQL database is in
+[docs/DATABASE_MIGRATION_PLAN.md](docs/DATABASE_MIGRATION_PLAN.md).
+
 ## Known limitations
 
 - Only the stacked block layout on the first sheet is supported. Workbooks
