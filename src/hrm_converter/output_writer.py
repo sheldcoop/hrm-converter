@@ -16,10 +16,11 @@ from hrm_converter.config import Config
 from hrm_converter.hierarchy import is_machine_folder
 from hrm_converter.models import (
     ISSUE_COLUMNS,
-    LONG_COLUMNS,
+    LONG_SHEET_COLUMNS,
     SUMMARY_COLUMNS,
     FileResult,
     Issue,
+    LimitValues,
     LongRecord,
     OutputError,
     RunResult,
@@ -57,9 +58,16 @@ def _frame(rows: Sequence[tuple[object, ...]], columns: tuple[str, ...]) -> pd.D
     return frame
 
 
-def long_frame(records: list[LongRecord]) -> pd.DataFrame:
-    rows = [r.as_row() for r in records]
-    return _frame(rows, LONG_COLUMNS)
+def long_frame(
+    records: list[LongRecord], limits: Sequence[LimitValues] | None = None
+) -> pd.DataFrame:
+    """The Long sheet: the schema columns plus LSL / Target / USL (blank without limits)."""
+    blank: LimitValues = (None, None, None)
+    rows = [
+        (*record.as_row(), *(limits[position] if limits else blank))
+        for position, record in enumerate(records)
+    ]
+    return _frame(rows, LONG_SHEET_COLUMNS)
 
 
 def summary_frame(results: list[FileResult]) -> pd.DataFrame:
@@ -122,7 +130,7 @@ def format_sheet(sheet: Worksheet, frame: pd.DataFrame, table_name: str) -> None
 def write_output(result: RunResult, config: Config, path: Path) -> Path:
     """Write the three sheets as static values and return the workbook path."""
     frames = [
-        (config.output.sheet_name, long_frame(result.records), "tblLong"),
+        (config.output.sheet_name, long_frame(result.records, result.record_limits), "tblLong"),
         (SUMMARY_SHEET, summary_frame(result.file_results), "tblProcessingSummary"),
         (ISSUES_SHEET, issues_frame(result.issues), "tblValidationIssues"),
     ]

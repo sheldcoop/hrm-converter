@@ -33,12 +33,11 @@ from hrm_converter.models import LONG_COLUMNS, HrmConverterError, Issue, OutputE
 from hrm_converter.output_writer import format_sheet, issues_frame
 from hrm_converter.reference import (
     LIMIT_COLUMNS,
+    LimitMatcher,
     Limits,
     Reference,
-    find_limits,
     is_blank,
     load_reference,
-    normalize_value,
     reference_template,
 )
 from hrm_converter.validation import IssueCollector, natural_key
@@ -139,8 +138,7 @@ def build_wide(
 
     features: dict[str, _Feature] = {}
     repeats: dict[tuple[object, ...], int] = {}
-    limit_cache: dict[tuple[str, ...], Limits] = {}
-    key_columns = reference.key_columns if reference is not None else ()
+    matcher = LimitMatcher(reference, config, issues) if reference is not None else None
 
     for record in long[list(LONG_COLUMNS)].itertuples(index=False, name=None):
         item = dict(zip(LONG_COLUMNS, record, strict=True))
@@ -166,16 +164,8 @@ def build_wide(
         counts = feature.counts.setdefault(metric, [0, 0, 0])
         counts[0] += 1
 
-        if reference is not None:
-            normalized = {c: normalize_value(c, item[c], config) for c in key_columns}
-            cache_key = tuple(normalized[c] for c in key_columns)
-            if cache_key not in limit_cache:
-                label = (
-                    f"{item['Part_Number']} / {item['Buildup']} / {item['Side']} / "
-                    f"{feature_type} {item['Feature_Number']} / {metric}"
-                )
-                limit_cache[cache_key] = find_limits(reference, normalized, issues, label)
-            limits = limit_cache[cache_key]
+        if matcher is not None:
+            limits = matcher.limits(item)
             if not limits.is_empty():
                 row.limits[metric] = limits
                 counts[1] += 1

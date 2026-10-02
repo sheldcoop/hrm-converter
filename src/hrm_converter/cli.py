@@ -34,6 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--lot-name", help="Lot_Name written for every lot (overrides metadata.default_lot_name)."
     )
     parser.add_argument(
+        "--reference",
+        type=Path,
+        help="Workbook with LSL / Target / USL; adds limit columns to the long table "
+        "(default: wide.reference_path of the config).",
+    )
+    parser.add_argument(
         "--permissive",
         action="store_true",
         help="On metadata conflicts use the hierarchy value instead of skipping the file.",
@@ -117,7 +123,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         log_path = setup_logging(config.logging.directory, config.logging.level)
         try:
-            result = run_conversion(Path(start), config)
+            result = run_conversion(Path(start), config, reference=args.reference)
         finally:
             close_logging()
         result.log_path = log_path.resolve()

@@ -17,6 +17,7 @@ Any long-format key column may be used as a key column (``KEY_COLUMNS``).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO
@@ -245,6 +246,29 @@ def find_limits(
     for rule in winners:
         reference.matched[rule.excel_row] = reference.matched.get(rule.excel_row, 0) + 1
     return winners[0].limits
+
+
+class LimitMatcher:
+    """Finds the limits for long-table rows, remembering each distinct key combination."""
+
+    def __init__(self, reference: Reference, config: Config, issues: IssueCollector) -> None:
+        self.reference = reference
+        self.config = config
+        self.issues = issues
+        self._cache: dict[tuple[str, ...], Limits] = {}
+
+    def limits(self, item: Mapping[str, object]) -> Limits:
+        """``item`` maps long-table column names to the values of one row."""
+        columns = self.reference.key_columns
+        normalized = {c: normalize_value(c, item[c], self.config) for c in columns}
+        key = tuple(normalized[c] for c in columns)
+        if key not in self._cache:
+            label = (
+                f"{item['Part_Number']} / {item['Buildup']} / {item['Side']} / "
+                f"{item['Feature_Type']} {item['Feature_Number']} / {item['Metric']}"
+            )
+            self._cache[key] = find_limits(self.reference, normalized, self.issues, label)
+        return self._cache[key]
 
 
 def reference_template(long: pd.DataFrame) -> pd.DataFrame:

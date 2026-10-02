@@ -22,7 +22,14 @@ from create_test_fixture import (
 )
 from hrm_converter.cli import main
 from hrm_converter.config import Config, build_config
-from hrm_converter.models import ISSUE_COLUMNS, LONG_COLUMNS, SUMMARY_COLUMNS, OutputError
+from hrm_converter.models import (
+    ISSUE_COLUMNS,
+    LONG_COLUMNS,
+    LONG_LIMIT_COLUMNS,
+    LONG_SHEET_COLUMNS,
+    SUMMARY_COLUMNS,
+    OutputError,
+)
 from hrm_converter.pipeline import run_conversion
 
 EXPECTED_PROJECT_ROWS = 298
@@ -55,7 +62,8 @@ def test_project_run_writes_the_expected_workbook(hierarchy: FixtureInfo, config
 
     book = sheets(result.output_path)
     assert list(book) == ["Long", "Processing_Summary", "Validation_Issues"]
-    assert tuple(book["Long"].columns) == LONG_COLUMNS
+    assert tuple(book["Long"].columns) == LONG_SHEET_COLUMNS
+    assert all(set(book["Long"][c]) == {""} for c in LONG_LIMIT_COLUMNS)  # no reference given
     assert tuple(book["Processing_Summary"].columns) == SUMMARY_COLUMNS
     assert tuple(book["Validation_Issues"].columns) == ISSUE_COLUMNS
 

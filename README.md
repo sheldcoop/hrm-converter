@@ -37,7 +37,7 @@ their measurements into one consolidated long-format Excel workbook.
    | Page | What you see |
    |---|---|
    | Summary | How many folders and workbooks were found, processed and skipped, and why |
-   | Long | The long table, with filters and a download button |
+   | Long | The long table with LSL / Target / USL per row, filters and a download button |
    | Wide | One feature at a time, with limits and out-of-spec values in red |
    | Issues | Every warning and error from the conversion and from the limits file |
    | Reference | The limits that were used, and the template download |
@@ -61,8 +61,9 @@ files** at the top of the sidebar, upload one or more workbooks and press
   folder to know the file is a coupon.
 - Several files stay apart through `Source_File`. Two uploads with the same
   file name are refused, because their rows could not be told apart.
-- Limits still apply, but only reference rows whose Part_Number, Buildup and
-  Side cells are blank can match, since the data has none.
+- Limits still apply, in the long and the wide workbook, but only reference
+  rows whose Part_Number, Buildup and Side cells are blank can match, since
+  the data has none.
 
 Both the long and the wide workbook can be downloaded from the **Summary**
 page, and are saved in `output` as usual.
@@ -168,6 +169,7 @@ python -m hrm_converter --input "L:\...\Chiplet4Future\FHR0020\19198" --config c
 | `--config` | Settings file. Default: `config.yaml` in the current folder if present, otherwise built-in defaults. |
 | `--output-dir` | Overrides `output.directory`. |
 | `--lot-name` | `Lot_Name` written for every lot in this run. |
+| `--reference` | Workbook with LSL / Target / USL. Fills the limit columns of the long table. Default: `wide.reference_path` of the config. |
 | `--permissive` | On a metadata conflict, use the folder value instead of skipping the file. |
 
 At the end a short summary is printed: detected scope, HRM folders found,
@@ -306,8 +308,12 @@ you want, as the shipped `config.yaml` does.
 
 ## Long-format schema
 
-Sheet `Long`, exactly these columns in this order. One row is one metric value
-of one feature on one unit or coupon.
+Sheet `Long`, these 16 columns in this order. One row is one metric value of
+one feature on one unit or coupon. They are followed by three limit columns,
+`LSL`, `Target` and `USL`: the limits that apply to that row, taken from the
+reference workbook. They are blank when no reference workbook is given or no
+row of it fits (see [Wide format and limits](#wide-format-and-limits) for the
+matching rules).
 
 | Column | Source |
 |---|---|

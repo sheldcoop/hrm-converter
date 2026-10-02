@@ -14,7 +14,7 @@ import pytest
 from conftest import ConfigFactory
 from create_test_fixture import PAD_HEADERS, VIA_HEADERS, make_block, write_workbook
 from hrm_converter.config import Config
-from hrm_converter.models import LONG_COLUMNS
+from hrm_converter.models import LONG_COLUMNS, LONG_SHEET_COLUMNS
 from hrm_converter.pipeline import run_loose_files
 from hrm_converter.validation import IssueCollector
 from hrm_converter.wide import build_wide, read_long
@@ -45,7 +45,7 @@ def test_metadata_is_blank_and_measurements_are_complete(tmp_path: Path, config:
 
     assert result.output_path is not None
     long = read_long(result.output_path, config)
-    assert tuple(long.columns) == LONG_COLUMNS
+    assert tuple(long.columns) == LONG_SHEET_COLUMNS
     for column in METADATA:
         assert set(long[column]) == {""}, column  # nothing is guessed from the file name
     assert set(long["Unit"]) == {1, 2, 3}
@@ -103,3 +103,34 @@ def test_app_loose_mode_needs_a_file(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     app.button(key="convert").click().run()
     assert not app.exception
     assert "Upload at least one Excel file first" in app.error[0].value
+
+
+def limits_file(path: Path, rows: list[dict[str, object]]) -> Path:
+    pd.DataFrame(rows).to_excel(path, sheet_name="Limits", index=False)
+    return path
+
+
+def test_loose_files_get_limits_in_the_long_table(tmp_path: Path, config: Config) -> None:
+    source = workbook(tmp_path / "loose.xlsx", 100)
+    reference = limits_file(
+        tmp_path / "limits.xlsx",
+        [
+            {
+                "Part_Number": None,
+                "Feature_Type": "Pad",
+                "Metric": "Radius",
+                "LSL": 100,
+                "USL": 100.25,
+            },
+            # Needs a Part Number, which a loose file does not have: cannot match.
+            {"Part_Number": "SYN-PART", "Feature_Type": "Via", "Metric": "Dimple", "USL": 1},
+        ],
+    )
+    result = run_loose_files([(source.name, source)], config, reference)
+    assert result.output_path is not None
+    long = read_long(result.output_path, config)
+    radius = long[(long["Feature_Type"] == "Pad") & (long["Metric"] == "Radius")]
+    assert set(radius["LSL"]) == {100} and set(radius["USL"]) == {100.25}
+    assert set(radius["Target"]) == {""}
+    others = long[long["Metric"] != "Radius"]
+    assert set(others["LSL"]) == {""} and set(others["USL"]) == {""}

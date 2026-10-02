@@ -292,3 +292,60 @@ def test_wide_cli_reports_a_missing_long_workbook(
     monkeypatch.chdir(tmp_path)
     assert main(["--input", str(tmp_path / "missing.xlsx")]) == 1
     assert "Long workbook cannot be read" in capsys.readouterr().err
+
+
+def test_long_table_carries_limits_per_row(
+    hierarchy: FixtureInfo, config: Config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reference = tmp_path / "limits.xlsx"
+    reference_frame(
+        [
+            {"Feature_Type": "Pad", "Metric": "Radius", "LSL": 90, "Target": 100, "USL": 300},
+            {"Buildup": "BU02", "Feature_Type": "Pad", "Metric": "Radius", "LSL": 150, "USL": 170},
+        ]
+    ).to_excel(reference, sheet_name="Limits", index=False)
+
+    result = run_conversion(hierarchy.lot_a1, config, reference)
+    assert len(result.record_limits) == len(result.records) == 244
+    assert result.output_path is not None
+    long = read_long(result.output_path, config)
+    assert list(long.columns)[-3:] == ["LSL", "Target", "USL"]
+
+    radius = long[(long["Feature_Type"] == "Pad") & (long["Metric"] == "Radius")]
+    general = radius[radius["Buildup"] != "BU-02"]
+    assert (
+        set(general["LSL"]) == {90}
+        and set(general["Target"]) == {100}
+        and set(general["USL"]) == {300}
+    )
+    specific = radius[radius["Buildup"] == "BU-02"]  # the more specific row wins
+    assert (
+        set(specific["LSL"]) == {150}
+        and set(specific["Target"]) == {""}
+        and set(specific["USL"]) == {170}
+    )
+    rest = long[~((long["Feature_Type"] == "Pad") & (long["Metric"] == "Radius"))]
+    assert set(rest["LSL"]) == {""} and set(rest["USL"]) == {""}
+
+    # The wide table built from this long workbook shows the same limits.
+    wide = build_wide(
+        long, load_reference(reference, config, IssueCollector()), config, IssueCollector()
+    )
+    pad = wide.sheets["Pad"]
+    assert set(pad[pad["Buildup"] == "BU-02"]["Radius_USL"]) == {170.0}
+
+    # Command line: --reference does the same.
+    from hrm_converter.cli import main as convert_main
+
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "cli"
+    arguments = ["--input", str(hierarchy.lot_a1 / "BU02"), "--output-dir", str(out)]
+    assert convert_main([*arguments, "--reference", str(reference)]) == 0
+    assert set(read_long(out / "hrm_long_format.xlsx", config)["USL"]) == {170, ""}
+
+
+def test_unreadable_reference_stops_the_conversion_clearly(
+    hierarchy: FixtureInfo, config: Config, tmp_path: Path
+) -> None:
+    with pytest.raises(ReferenceFileError, match="Reference workbook cannot be read"):
+        run_conversion(hierarchy.lot_a1, config, tmp_path / "missing.xlsx")

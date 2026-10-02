@@ -46,7 +46,8 @@ only: `load_reference` → `build_wide` → `write_wide`.
   position (`metrics.positional`).
 - Folder hierarchy is authoritative for metadata; the sheet name and file name
   are the cross-check. Strict mode skips a conflicting file.
-- Output columns are fixed: `LONG_COLUMNS` in `models.py`. Do not add `Sample`,
+- Output columns are fixed: `LONG_COLUMNS` in `models.py`, followed in the Long
+  sheet by `LSL`, `Target`, `USL` (`LONG_SHEET_COLUMNS`). Do not add `Sample`,
   `Site` or `Point`.
 - The long table is the single source. Wide tables are derived from it and
   never read source workbooks.

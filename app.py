@@ -118,6 +118,21 @@ def convert(
         ),
         processing=dataclasses.replace(config.processing, strict_metadata_conflicts=strict),
     )
+    # Limits come from the upload, else the typed path, else the config.
+    on_disk = Path(reference_path) if reference_path else config.wide.reference_path
+    reference_name: str | None = None
+    if reference_file is not None:
+        reference_name = str(getattr(reference_file, "name", "reference.xlsx"))
+        content: bytes = reference_file.getvalue()  # type: ignore[attr-defined]
+
+        def open_reference() -> Path | io.BytesIO | None:
+            return io.BytesIO(content)
+    else:
+        reference_name = on_disk.name if on_disk is not None else None
+
+        def open_reference() -> Path | io.BytesIO | None:
+            return on_disk
+
     log_path = setup_logging(config.logging.directory, config.logging.level)
     try:
         if loose_files:
@@ -125,24 +140,20 @@ def convert(
                 (str(getattr(f, "name", "workbook.xlsx")), io.BytesIO(f.getvalue()))  # type: ignore[attr-defined]
                 for f in loose_files
             ]
-            result = run_loose_files(uploads, config)
+            result = run_loose_files(uploads, config, open_reference(), reference_name)
         else:
-            result = run_conversion(Path(folder), config)
+            result = run_conversion(Path(folder), config, open_reference(), reference_name)
     finally:
         close_logging()
     result.log_path = log_path
 
-    long = long_frame(result.records)
+    # The long table carries LSL / Target / USL per row; the wide one is derived from it.
+    long = long_frame(result.records, result.record_limits)
     issues = IssueCollector()
-    reference, reference_name = None, None
-    on_disk = Path(reference_path) if reference_path else config.wide.reference_path
-    if reference_file is not None:
-        reference_name = str(getattr(reference_file, "name", "reference.xlsx"))
-        data = io.BytesIO(reference_file.getvalue())  # type: ignore[attr-defined]
-        reference = load_reference(data, config, issues, name=reference_name)
-    elif on_disk is not None:
-        reference_name = on_disk.name
-        reference = load_reference(on_disk, config, issues)
+    source = open_reference()
+    reference = (
+        load_reference(source, config, issues, name=reference_name) if source is not None else None
+    )
     wide = build_wide(long, reference, config, issues)
     assert result.output_path is not None
     wide_path = write_wide(wide, result.output_path.with_name(config.wide.filename))
@@ -373,7 +384,10 @@ def render_wide(run: Run) -> None:
 
 
 def render_issues(run: Run) -> None:
-    conversion = issues_frame(run.result.issues)
+    # Problems in the limits file are listed once, under "Limits" below.
+    conversion = issues_frame(
+        [issue for issue in run.result.issues if not issue.category.startswith("reference_")]
+    )
     st.subheader(f"Conversion ({len(conversion)})")
     if conversion.empty:
         st.success("No warnings or errors.")

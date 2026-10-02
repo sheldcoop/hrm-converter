@@ -15,8 +15,10 @@ from hrm_converter.config import Config
 from hrm_converter.discovery import discover
 from hrm_converter.hierarchy import detect_scope
 from hrm_converter.models import (
+    LONG_COLUMNS,
     Candidate,
     FileResult,
+    LimitValues,
     LongRecord,
     RunResult,
     Status,
@@ -24,6 +26,7 @@ from hrm_converter.models import (
     WorkbookReadError,
 )
 from hrm_converter.output_writer import resolve_output_path, write_output
+from hrm_converter.reference import LimitMatcher, load_reference
 from hrm_converter.transformer import sort_records, transform
 from hrm_converter.validation import IssueCollector, find_conflicts
 from hrm_converter.workbook_reader import read_workbook
@@ -71,10 +74,39 @@ def _process(
     return transform(sheet, candidate, config, issues), None
 
 
-def run_conversion(start_path: Path, config: Config) -> RunResult:
-    """Run the whole conversion for the selected folder and write the output workbook."""
+ReferenceSource = Path | IO[bytes] | None
+
+
+def _load_limits(
+    source: ReferenceSource, name: str | None, config: Config, issues: IssueCollector
+) -> LimitMatcher | None:
+    """The reference workbook given for this run, else the configured one, else none."""
+    chosen = source if source is not None else config.wide.reference_path
+    if chosen is None:
+        return None
+    return LimitMatcher(load_reference(chosen, config, issues, name=name), config, issues)
+
+
+def _record_limits(records: list[LongRecord], matcher: LimitMatcher | None) -> list[LimitValues]:
+    if matcher is None:
+        return []
+    found = (matcher.limits(dict(zip(LONG_COLUMNS, r.as_row(), strict=True))) for r in records)
+    return [(limits.lsl, limits.target, limits.usl) for limits in found]
+
+
+def run_conversion(
+    start_path: Path,
+    config: Config,
+    reference: ReferenceSource = None,
+    reference_name: str | None = None,
+) -> RunResult:
+    """Run the whole conversion for the selected folder and write the output workbook.
+
+    With a reference workbook, the Long sheet also carries LSL / Target / USL per row.
+    """
     issues = IssueCollector()
     output_path = resolve_output_path(config, start_path)
+    matcher = _load_limits(reference, reference_name, config, issues)
     scope = detect_scope(start_path, config, issues)
     logger.info("Selected folder: %s (detected role: %s)", scope.start_path, scope.role.value)
 
@@ -118,6 +150,7 @@ def run_conversion(start_path: Path, config: Config) -> RunResult:
         result.file_results.append(FileResult(candidate, Status.PROCESSED, "", len(rows)))
 
     result.records = sort_records(records)
+    result.record_limits = _record_limits(result.records, matcher)
     result.issues = issues.reportable()
     result.output_path = write_output(result, config, output_path)
     logger.info(
@@ -134,7 +167,12 @@ def run_conversion(start_path: Path, config: Config) -> RunResult:
 LOOSE_FOLDER = "(loose file)"
 
 
-def run_loose_files(files: Sequence[tuple[str, Path | IO[bytes]]], config: Config) -> RunResult:
+def run_loose_files(
+    files: Sequence[tuple[str, Path | IO[bytes]]],
+    config: Config,
+    reference: ReferenceSource = None,
+    reference_name: str | None = None,
+) -> RunResult:
     """Convert workbooks that are not in a folder hierarchy.
 
     ``files`` holds (file name, path or open binary file). There are no folders
@@ -144,6 +182,7 @@ def run_loose_files(files: Sequence[tuple[str, Path | IO[bytes]]], config: Confi
     """
     issues = IssueCollector()
     output_path = (Path.cwd() / config.output.directory / config.output.filename).resolve()
+    matcher = _load_limits(reference, reference_name, config, issues)
     blank = WorkbookContext(
         project_name="",
         part_number="",
@@ -187,6 +226,7 @@ def run_loose_files(files: Sequence[tuple[str, Path | IO[bytes]]], config: Confi
         result.file_results.append(FileResult(candidate, Status.PROCESSED, "", len(rows)))
 
     result.records = sort_records(records)
+    result.record_limits = _record_limits(result.records, matcher)
     result.issues = issues.reportable()
     result.output_path = write_output(result, config, output_path)
     logger.info(

@@ -27,6 +27,12 @@ LONG_COLUMNS: tuple[str, ...] = (
     "Source_File",
 )
 
+# The Long sheet = the 16 schema columns, then the limits that apply to each value
+# (blank when no reference workbook was given or no row of it fits).
+LONG_LIMIT_COLUMNS: tuple[str, ...] = ("LSL", "Target", "USL")
+LONG_SHEET_COLUMNS: tuple[str, ...] = LONG_COLUMNS + LONG_LIMIT_COLUMNS
+LimitValues = tuple[float | None, float | None, float | None]
+
 SUMMARY_COLUMNS: tuple[str, ...] = (
     "Project_Name",
     "Part_Number",
@@ -248,6 +254,7 @@ class RunResult:
 
     scope: Scope | None  # None for loose files without a folder hierarchy
     records: list[LongRecord] = field(default_factory=list)
+    record_limits: list[LimitValues] = field(default_factory=list)  # parallel to records
     file_results: list[FileResult] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
     hrm_folder_count: int = 0
