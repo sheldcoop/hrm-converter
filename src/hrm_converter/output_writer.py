@@ -45,11 +45,9 @@ _LINK_CHUNK = 200
 _LINK_FONT = Font(color="0563C1", underline="single")
 
 
-def resolve_output_path(config: Config, start_path: Path) -> Path:
+def resolve_output_path(config: Config, start_path: Path, filename: str) -> Path:
     """Absolute output path; refuses locations the traversal would read from."""
-    path = (Path.cwd() / config.output.directory / config.output.filename).resolve()
-    if path.suffix.lower() != ".xlsx":
-        raise OutputError(f"Output filename must end with .xlsx: {config.output.filename}")
+    path = (Path.cwd() / config.output.directory / filename).resolve()
     start = start_path.resolve()
     if path.is_relative_to(start) and any(
         is_machine_folder(part, config) for part in path.relative_to(start).parts

@@ -10,7 +10,8 @@ The long table stays the single source. This module only reshapes it:
   metric outside its limits.
 
 Run:
-    python -m hrm_converter.wide --input output/hrm_long_format.xlsx --reference HRM_Reference.xlsx
+    python -m hrm_converter.wide --reference HRM_Reference.xlsx      (newest long workbook)
+    python -m hrm_converter.wide --input output/HRM_Long_x.xlsx --reference HRM_Reference.xlsx
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from openpyxl.utils import get_column_letter
 from hrm_converter.config import Config, load_config
 from hrm_converter.logging_setup import close_logging, setup_logging
 from hrm_converter.models import LONG_COLUMNS, HrmConverterError, Issue, OutputError
+from hrm_converter.naming import glob_for, wide_name_for
 from hrm_converter.output_writer import format_sheet, issues_frame
 from hrm_converter.reference import (
     LIMIT_COLUMNS,
@@ -362,13 +364,29 @@ def format_summary(result: WideResult, output: Path) -> str:
     )
 
 
+def latest_long_workbook(config: Config) -> Path:
+    """The newest long workbook in the output folder (used when --input is not given)."""
+    found = sorted(
+        config.output.directory.glob(glob_for(config.output.filename)),
+        key=lambda path: path.stat().st_mtime,
+    )
+    if not found:
+        raise WideError(
+            f"No long workbook found in '{config.output.directory}'. Run the converter first, "
+            f"or pass --input."
+        )
+    return found[-1]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="hrm_converter.wide",
         description="Build the wide workbook (one sheet per feature, with limits) from the "
         "long workbook written by hrm_converter.",
     )
-    parser.add_argument("--input", type=Path, help="Long workbook (default: the converter output).")
+    parser.add_argument(
+        "--input", type=Path, help="Long workbook (default: the newest one in the output folder)."
+    )
     parser.add_argument("--reference", type=Path, help="Reference workbook with LSL/Target/USL.")
     parser.add_argument("--output", type=Path, help="Wide workbook to write.")
     parser.add_argument("--config", type=Path, help="config.yaml (default: ./config.yaml).")
@@ -388,7 +406,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if config_path is None and DEFAULT_CONFIG.is_file():
             config_path = DEFAULT_CONFIG
         config = load_config(config_path)
-        long_path = args.input or config.output.directory / config.output.filename
+        long_path = args.input or latest_long_workbook(config)
         long = read_long(long_path, config)
 
         if args.make_reference is not None:
@@ -399,7 +417,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         issues = IssueCollector()
         reference_path = args.reference or config.wide.reference_path
-        output = args.output or long_path.with_name(config.wide.filename)
+        output = args.output or long_path.with_name(wide_name_for(long_path))
         # Issues go to the log file and the Wide_Issues sheet, not to the console.
         setup_logging(config.logging.directory, config.logging.level)
         try:

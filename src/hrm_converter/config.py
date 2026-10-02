@@ -117,7 +117,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "output": {
         "directory": "output",
-        "filename": "hrm_long_format.xlsx",
+        "filename": "HRM_Long_{scope}_{timestamp}.xlsx",
         "sheet_name": "Long",
     },
     "quality": {
@@ -127,7 +127,7 @@ DEFAULTS: dict[str, Any] = {
         "duplicate_file_check": True,
     },
     "wide": {
-        "filename": "hrm_wide_format.xlsx",
+        "filename": "HRM_Wide_{scope}_{timestamp}.xlsx",
         "reference_path": None,
         "reference_sheet": "Limits",
     },

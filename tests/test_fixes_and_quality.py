@@ -81,7 +81,6 @@ def test_running_the_fix_script_repairs_the_folders(tmp_path: Path, config: Conf
     after = run_conversion(project, config)
     assert after.processed_count == 5  # only the ambiguous 'front and back' folder is left
     assert [p for p in after.fix_plan] == [] and after.fix_script_path is None
-    assert not before.fix_script_path.exists()  # a stale plan is removed
     assert {r.buildup for r in after.records} == {"BU-01", "BU-02"}
     assert [i.category for i in after.issues if i.category.startswith("invalid")] == [
         "invalid_side_folder"

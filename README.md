@@ -44,8 +44,9 @@ their measurements into one consolidated long-format Excel workbook.
    | Reference | The limits that were used, and the template download |
 
 5. **Find the results.** Both workbooks are saved in the `output` folder next
-   to the app (`hrm_long_format.xlsx`, `hrm_wide_format.xlsx`) and can be
-   downloaded from the Long and Wide pages. Logs are in `logs`.
+   to the app and can be downloaded from the Summary, Long and Wide pages. The
+   file names say what they hold (see [File names](#file-names)). Logs are in
+   `logs`.
 
 ### Loose Excel files (no folders)
 
@@ -187,14 +188,14 @@ A second command turns the long workbook into a wide one. It only reshapes the
 long table; it never reads the source folders.
 
 ```bash
-python -m hrm_converter.wide --input output/hrm_long_format.xlsx --reference HRM_Reference.xlsx
+python -m hrm_converter.wide --reference HRM_Reference.xlsx
 ```
 
 | Option | Meaning |
 |---|---|
-| `--input` | Long workbook. Default: the converter's output from the config. |
+| `--input` | Long workbook. Default: the newest long workbook in the output folder. |
 | `--reference` | Workbook with limits. Default: `wide.reference_path` of the config; without one, no limit columns are written. |
-| `--output` | Wide workbook. Default: `hrm_wide_format.xlsx` next to the long workbook. |
+| `--output` | Wide workbook. Default: next to the long workbook, same name with `Wide` instead of `Long`. |
 | `--make-reference FILE` | Write a starter reference workbook from the long data and stop. Never overwrites an existing file. |
 
 **Wide workbook.**
@@ -457,8 +458,8 @@ what it would do. It **never changes source folders itself**.
 
 - `Fix_Plan` sheet (and the Summary page of the app): one row per proposed
   action with `Action`, `From`, `To` and `Reason`.
-- A script next to the output workbook, `fix_folders.bat` on Windows and
-  `fix_folders.sh` elsewhere (also downloadable in the app). Read it, delete
+- A script next to the output workbook, `HRM_FixFolders_….bat` on Windows and
+  `.sh` elsewhere (also downloadable in the app). Read it, delete
   the lines you do not want, run it yourself, then convert again. It never
   overwrites: if a target already exists, that line is skipped.
 
@@ -516,7 +517,33 @@ One problem file never stops the run. Everything below is written to the
 
 ## Output workbook
 
-Written to `output/hrm_long_format.xlsx` by default, as static values:
+### File names
+
+Every file says what was converted and when, and the files of one run share
+the same ending:
+
+```text
+HRM_Long_FHR0020_19198_2026-10-02_1745.xlsx        long table
+HRM_Wide_FHR0020_19198_2026-10-02_1745.xlsx        wide table
+HRM_FixFolders_FHR0020_19198_2026-10-02_1745.bat   fix plan, only when there is one
+```
+
+| You selected | Middle part of the name |
+|---|---|
+| Project folder | project name, e.g. `Chiplet4Future` |
+| Part Number folder | part number, e.g. `FHR0020` |
+| Lot folder | part and lot, e.g. `FHR0020_19198` |
+| Buildup folder | part, lot and Buildup, e.g. `FHR0020_19198_BU03` |
+| One loose Excel file | that file's name |
+| Several loose files | how many, e.g. `3-loose-files` |
+
+The time is the minute the conversion started, so a new run does not overwrite
+an earlier one; delete old files from `output` when you no longer need them.
+The pattern is `output.filename` and `wide.filename` in `config.yaml`
+(placeholders `{scope}` and `{timestamp}`); a name without placeholders gives
+one fixed file that is overwritten each time.
+
+Written to the `output` folder by default, as static values:
 
 1. `Long` – the consolidated table.
 2. `Processing_Summary` – one row per candidate workbook: status

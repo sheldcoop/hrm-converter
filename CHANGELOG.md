@@ -11,6 +11,10 @@
   the median of their block (`quality` section in `config.yaml`).
 - Duplicate detection: the same workbook content found in two places.
 - App remembers the last folder and limits path.
+- Output files are named after what was converted and when, for example
+  `HRM_Long_FHR0020_19198_2026-10-02_1745.xlsx` and the matching `HRM_Wide_…`
+  and `HRM_FixFolders_…`. The wide command picks the newest long workbook when
+  `--input` is not given.
 
 ## 1.2.0 - 2026-10-02
 

@@ -27,6 +27,13 @@ from hrm_converter.models import (
     WorkbookContext,
     WorkbookReadError,
 )
+from hrm_converter.naming import (
+    fix_script_name,
+    loose_label,
+    render,
+    scope_label,
+    timestamp,
+)
 from hrm_converter.output_writer import resolve_output_path, write_output
 from hrm_converter.quality import check_values
 from hrm_converter.reference import LimitMatcher, load_reference
@@ -35,6 +42,7 @@ from hrm_converter.validation import IssueCollector, find_conflicts
 from hrm_converter.workbook_reader import read_workbook
 
 logger = logging.getLogger(__name__)
+_NAME = "output.filename"
 
 
 def _process(
@@ -142,13 +150,21 @@ def run_conversion(
     With a reference workbook, the Long sheet also carries LSL / Target / USL per row.
     """
     issues = IssueCollector()
-    output_path = resolve_output_path(config, start_path)
+    stamp = timestamp()
+    # Checked with a placeholder name first, so a bad output location stops the run early.
+    resolve_output_path(config, start_path, render(config.output.filename, "x", stamp, _NAME))
     matcher = _load_limits(reference, reference_name, config, issues)
     scope = detect_scope(start_path, config, issues)
+    label = scope_label(scope)
+    output_path = resolve_output_path(
+        config, start_path, render(config.output.filename, label, stamp, _NAME)
+    )
     logger.info("Selected folder: %s (detected role: %s)", scope.start_path, scope.role.value)
 
     discovery = discover(scope, config, issues, exclude=output_path)
-    result = RunResult(scope=scope, hrm_folder_count=discovery.hrm_folder_count)
+    result = RunResult(
+        scope=scope, hrm_folder_count=discovery.hrm_folder_count, label=label, timestamp=stamp
+    )
     records: list[LongRecord] = []
 
     duplicates = _DuplicateFinder(config, issues)
@@ -193,7 +209,9 @@ def run_conversion(
     result.issues = issues.reportable()
     result.fix_plan = list(issues.proposals)
     result.output_path = write_output(result, config, output_path)
-    result.fix_script_path = write_fix_script(result.fix_plan, output_path.parent)
+    result.fix_script_path = write_fix_script(
+        result.fix_plan, output_path.parent / fix_script_name(label, stamp)
+    )
     logger.info(
         "Finished: %d processed, %d skipped, %d rows, %d warnings, %d errors",
         result.processed_count,
@@ -222,7 +240,9 @@ def run_loose_files(
     fill in. Unit, feature, metric, value and Source_File are filled as usual.
     """
     issues = IssueCollector()
-    output_path = (Path.cwd() / config.output.directory / config.output.filename).resolve()
+    stamp, label = timestamp(), loose_label([name for name, _ in files])
+    filename = render(config.output.filename, label, stamp, _NAME)
+    output_path = (Path.cwd() / config.output.directory / filename).resolve()
     matcher = _load_limits(reference, reference_name, config, issues)
     blank = WorkbookContext(
         project_name="",
@@ -238,7 +258,7 @@ def run_loose_files(
         folder=Path("."),
         relative_folder=LOOSE_FOLDER,
     )
-    result = RunResult(scope=None)
+    result = RunResult(scope=None, label=label, timestamp=stamp)
     records: list[LongRecord] = []
     seen: set[str] = set()
     duplicates = _DuplicateFinder(config, issues)

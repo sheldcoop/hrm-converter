@@ -344,7 +344,8 @@ def test_long_table_carries_limits_per_row(
     out = tmp_path / "cli"
     arguments = ["--input", str(hierarchy.lot_a1 / "BU02"), "--output-dir", str(out)]
     assert convert_main([*arguments, "--reference", str(reference)]) == 0
-    assert set(read_long(out / "hrm_long_format.xlsx", config)["USL"]) == {170, ""}
+    (written,) = out.glob("HRM_Long_SYN-PART-A_90001_BU02_*.xlsx")
+    assert set(read_long(written, config)["USL"]) == {170, ""}
 
 
 def test_unreadable_reference_stops_the_conversion_clearly(

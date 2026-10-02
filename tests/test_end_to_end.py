@@ -320,7 +320,8 @@ def test_cli_run_prints_a_summary_without_measurements(
     assert "Output rows         : 244" in output
     assert "Warnings / errors" in output
     assert str(synthetic_value(100, 1, 0)) not in output
-    long = sheets(tmp_path / "cli out" / "hrm_long_format.xlsx")["Long"]
+    (written,) = (tmp_path / "cli out").glob("HRM_Long_SYN-PART-A_90001_*.xlsx")
+    long = sheets(written)["Long"]
     assert set(long["Lot_Name"]) == {"DOE Lot"}
     assert len(list((tmp_path / "logs").glob("hrm_converter_*.log"))) == 1
 

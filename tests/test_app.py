@@ -56,8 +56,8 @@ def test_app_converts_and_shows_every_page(
     assert not app.exception
     assert metrics(app)["Processed"] == "8"
     assert metrics(app)["Long rows"] == "244"
-    assert (tmp_path / "out" / "hrm_long_format.xlsx").is_file()
-    assert (tmp_path / "out" / "hrm_wide_format.xlsx").is_file()
+    names = sorted(path.name[:28] for path in (tmp_path / "out").glob("*.xlsx"))
+    assert names == ["HRM_Long_SYN-PART-A_90001_20", "HRM_Wide_SYN-PART-A_90001_20"]
 
     for view in ("Long", "Wide", "Issues", "Reference", "Summary"):
         app.button(key=f"view_{view}").click().run()

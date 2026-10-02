@@ -26,9 +26,10 @@ if str(APP_DIR / "src") not in sys.path:
     sys.path.insert(0, str(APP_DIR / "src"))
 
 from hrm_converter.config import Config, load_config  # noqa: E402
-from hrm_converter.fixplan import fix_script, script_name  # noqa: E402
+from hrm_converter.fixplan import fix_script  # noqa: E402
 from hrm_converter.logging_setup import close_logging, setup_logging  # noqa: E402
 from hrm_converter.models import OPEN_FILE_COLUMN, HrmConverterError, RunResult  # noqa: E402
+from hrm_converter.naming import fix_script_name, render  # noqa: E402
 from hrm_converter.output_writer import (  # noqa: E402
     fix_plan_frame,
     folder_check_frame,
@@ -189,7 +190,8 @@ def convert(
         )
         wide = build_wide(long, reference, config, issues)
         assert result.output_path is not None
-        wide_path = write_wide(wide, result.output_path.with_name(config.wide.filename))
+        wide_name = render(config.wide.filename, result.label, result.timestamp, "wide.filename")
+        wide_path = write_wide(wide, result.output_path.with_name(wide_name))
     finally:
         close_logging()  # after the wide step, so its issues reach the log file too
     return Run(result, long, wide, wide_path, reference_name)
@@ -360,10 +362,11 @@ def render_summary(run: Run) -> None:
             f"then run it yourself and convert again."
         )
         st.dataframe(showable(fix_plan_frame(result)), width="stretch", hide_index=True)
+        name = fix_script_name(result.label, result.timestamp)
         st.download_button(
-            f"Download {script_name()}",
+            f"Download {name}",
             fix_script(result.fix_plan),
-            file_name=script_name(),
+            file_name=name,
             key="download_fix_script",
         )
     st.subheader("Workbooks")

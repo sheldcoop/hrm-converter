@@ -98,10 +98,6 @@ def propose_file_moves(
                      f"workbook lies in the panel folder; its name says '{side}'")  # fmt: skip
 
 
-def script_name() -> str:
-    return "fix_folders.bat" if os.name == "nt" else "fix_folders.sh"
-
-
 def fix_script(proposals: Sequence[FixProposal], windows: bool | None = None) -> str:
     """The proposals as a script: a .bat for Windows, a shell script elsewhere."""
     windows = os.name == "nt" if windows is None else windows
@@ -154,12 +150,10 @@ def fix_script(proposals: Sequence[FixProposal], windows: bool | None = None) ->
     return "\n".join(lines)
 
 
-def write_fix_script(proposals: Sequence[FixProposal], directory: Path) -> Path | None:
+def write_fix_script(proposals: Sequence[FixProposal], path: Path) -> Path | None:
     """Write the script next to the output workbook; None when there is nothing to fix."""
-    path = directory / script_name()
     if not proposals:
-        path.unlink(missing_ok=True)  # do not leave a stale plan from an earlier run
         return None
-    directory.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(fix_script(proposals), encoding="utf-8", newline="")
     return path

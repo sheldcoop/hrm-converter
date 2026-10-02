@@ -290,6 +290,8 @@ class RunResult:
     record_limits: list[LimitValues] = field(default_factory=list)  # parallel to records
     fix_plan: list[FixProposal] = field(default_factory=list)
     fix_script_path: Path | None = None
+    label: str = ""  # what was converted, as used in the output file names
+    timestamp: str = ""  # when, as used in the output file names
     file_results: list[FileResult] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
     hrm_folder_count: int = 0

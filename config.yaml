@@ -116,7 +116,9 @@ units:
 
 output:
   directory: output
-  filename: hrm_long_format.xlsx
+  # {scope} = what was converted (e.g. FHR0020_19198), {timestamp} = when (2026-10-02_1745).
+  # Leave both out for one fixed name that is overwritten on every run.
+  filename: "HRM_Long_{scope}_{timestamp}.xlsx"
   sheet_name: Long
 
 # Sanity checks. They only report (Validation_Issues); values are never changed.
@@ -130,7 +132,7 @@ quality:
 
 # Wide format (python -m hrm_converter.wide): one sheet per feature, with limits.
 wide:
-  filename: hrm_wide_format.xlsx
+  filename: "HRM_Wide_{scope}_{timestamp}.xlsx"   # used by the app; same placeholders
   # Excel file with LSL / Target / USL per Part Number, Buildup, Side, feature and metric.
   # null -> wide tables are written without limits (or pass --reference).
   reference_path: null
