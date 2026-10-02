@@ -337,7 +337,7 @@ def main() -> None:
     render_sidebar()
 
     if st.session_state.get("convert"):
-        folder = str(st.session_state.get("folder") or "").strip().strip('"')
+        folder = str(st.session_state.get("folder") or "").strip().strip("\"'")
         if not folder:
             st.error("Enter or browse to a folder first.")
         else:
@@ -348,7 +348,7 @@ def main() -> None:
                         str(st.session_state.get("lot_name") or "").strip(),
                         bool(st.session_state.get("strict", True)),
                         st.session_state.get("reference"),
-                        str(st.session_state.get("reference_path") or "").strip().strip('"'),
+                        str(st.session_state.get("reference_path") or "").strip().strip("\"'"),
                     )
             except HrmConverterError as exc:
                 st.session_state.pop("run", None)
