@@ -17,16 +17,21 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from hrm_converter.config import Config, load_config
-from hrm_converter.logging_setup import close_logging, setup_logging
-from hrm_converter.models import HrmConverterError, RunResult
-from hrm_converter.output_writer import issues_frame, long_frame, summary_frame
-from hrm_converter.pipeline import run_conversion
-from hrm_converter.reference import load_reference, reference_template
-from hrm_converter.validation import IssueCollector
-from hrm_converter.wide import OUT_OF_SPEC, WideResult, build_wide, write_wide
-
 APP_DIR = Path(__file__).resolve().parent
+# Works with any Streamlit, not only the project's own environment: when the
+# package is not installed in the Python that runs the app, use the copy in src/.
+if str(APP_DIR / "src") not in sys.path:
+    sys.path.insert(0, str(APP_DIR / "src"))
+
+from hrm_converter.config import Config, load_config  # noqa: E402
+from hrm_converter.logging_setup import close_logging, setup_logging  # noqa: E402
+from hrm_converter.models import HrmConverterError, RunResult  # noqa: E402
+from hrm_converter.output_writer import issues_frame, long_frame, summary_frame  # noqa: E402
+from hrm_converter.pipeline import run_conversion  # noqa: E402
+from hrm_converter.reference import load_reference, reference_template  # noqa: E402
+from hrm_converter.validation import IssueCollector  # noqa: E402
+from hrm_converter.wide import OUT_OF_SPEC, WideResult, build_wide, write_wide  # noqa: E402
+
 STYLESHEET = APP_DIR / "assets" / "styles.css"
 OUT_OF_SPEC_STYLE = "background-color: rgba(243, 139, 168, 0.35); font-weight: bold"
 MAX_STYLED_ROWS = 5000
