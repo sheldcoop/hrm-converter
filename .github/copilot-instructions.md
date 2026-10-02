@@ -21,6 +21,8 @@ an engineering folder hierarchy into one long-format Excel workbook. Read
 | `output_writer.py` | The three output sheets and their formatting |
 | `pipeline.py` | Orchestration, no user-interface code |
 | `cli.py` | Arguments, folder picker, completion summary |
+| `quality.py` | Value sanity checks (order, negative, far-off values); report only |
+| `fixplan.py` | Proposed folder repairs and the reviewable fix script; never applied |
 | `reference.py` | Limits sheet: validation and most-specific-row matching |
 | `wide.py` | Per-feature wide workbook from the long table, with limits; its own CLI |
 

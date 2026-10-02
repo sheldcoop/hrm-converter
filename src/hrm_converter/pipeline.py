@@ -6,6 +6,7 @@ or by another front end.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Sequence
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import IO
 
 from hrm_converter.config import Config
 from hrm_converter.discovery import discover
+from hrm_converter.fixplan import write_fix_script
 from hrm_converter.hierarchy import detect_scope
 from hrm_converter.models import (
     LONG_COLUMNS,
@@ -26,6 +28,7 @@ from hrm_converter.models import (
     WorkbookReadError,
 )
 from hrm_converter.output_writer import resolve_output_path, write_output
+from hrm_converter.quality import check_values
 from hrm_converter.reference import LimitMatcher, load_reference
 from hrm_converter.transformer import sort_records, transform
 from hrm_converter.validation import IssueCollector, find_conflicts
@@ -71,7 +74,41 @@ def _process(
         fields = ", ".join(dict.fromkeys(c.field for c in conflicts))
         return [], f"Metadata conflict between hierarchy and workbook: {fields}"
 
-    return transform(sheet, candidate, config, issues), None
+    rows = transform(sheet, candidate, config, issues)
+    check_values(rows, candidate, config, issues)
+    return rows, None
+
+
+class _DuplicateFinder:
+    """Reports a workbook whose content is identical to one already seen in this run."""
+
+    def __init__(self, config: Config, issues: IssueCollector) -> None:
+        self.enabled = config.quality.duplicate_file_check
+        self.issues = issues
+        self._seen: dict[str, str] = {}
+
+    def check(self, candidate: Candidate, source: Path | IO[bytes]) -> None:
+        if not self.enabled:
+            return
+        try:
+            if isinstance(source, Path):
+                data = source.read_bytes()
+            else:
+                position = source.tell()
+                data = source.read()
+                source.seek(position)
+        except OSError:
+            return  # unreadable files are reported by the reader
+        digest = hashlib.sha256(data).hexdigest()
+        first = self._seen.setdefault(digest, candidate.relative_path)
+        if first != candidate.relative_path:
+            self.issues.error(
+                "duplicate_workbook",
+                f"This workbook has exactly the same content as '{first}'. Both were "
+                f"converted; one of them is probably a copy in the wrong place.",
+                source_file=candidate.path.name,
+                relative_path=candidate.relative_path,
+            )
 
 
 ReferenceSource = Path | IO[bytes] | None
@@ -114,12 +151,14 @@ def run_conversion(
     result = RunResult(scope=scope, hrm_folder_count=discovery.hrm_folder_count)
     records: list[LongRecord] = []
 
+    duplicates = _DuplicateFinder(config, issues)
     for candidate in discovery.candidates:
         if candidate.skip_reason is not None:
             result.file_results.append(
                 FileResult(candidate, Status.SKIPPED, candidate.skip_reason, 0)
             )
             continue
+        duplicates.check(candidate, candidate.path)
         try:
             rows, skip_reason = _process(candidate, config, issues)
         except WorkbookReadError as exc:
@@ -152,7 +191,9 @@ def run_conversion(
     result.records = sort_records(records)
     result.record_limits = _record_limits(result.records, matcher)
     result.issues = issues.reportable()
+    result.fix_plan = list(issues.proposals)
     result.output_path = write_output(result, config, output_path)
+    result.fix_script_path = write_fix_script(result.fix_plan, output_path.parent)
     logger.info(
         "Finished: %d processed, %d skipped, %d rows, %d warnings, %d errors",
         result.processed_count,
@@ -200,6 +241,7 @@ def run_loose_files(
     result = RunResult(scope=None)
     records: list[LongRecord] = []
     seen: set[str] = set()
+    duplicates = _DuplicateFinder(config, issues)
 
     for name, source in files:
         on_disk = isinstance(source, Path) and source.name == name
@@ -211,8 +253,10 @@ def run_loose_files(
             result.file_results.append(FileResult(candidate, Status.SKIPPED, reason, 0))
             continue
         seen.add(name)
+        duplicates.check(candidate, source)
         try:
             rows = transform(read_workbook(source), candidate, config, issues)
+            check_values(rows, candidate, config, issues)
         except WorkbookReadError as exc:
             issues.error("unreadable_workbook", str(exc), **details)
             result.file_results.append(FileResult(candidate, Status.SKIPPED, str(exc), 0))

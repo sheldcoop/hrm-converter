@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 - 2026-10-02
+
+- Long sheet column order: `LSL`, `Target`, `USL` right after
+  `Unit_of_Measurement`; `Source_File` and `Open_File` at the end.
+- Fix plan: unambiguous folder repairs as a `Fix_Plan` sheet and a reviewable
+  script (`fix_folders.bat` / `fix_folders.sh`). The converter never changes
+  source folders itself.
+- Sanity checks on values: Min/Mean/Max order, negative values, values far off
+  the median of their block (`quality` section in `config.yaml`).
+- Duplicate detection: the same workbook content found in two places.
+- App remembers the last folder and limits path.
+
 ## 1.2.0 - 2026-10-02
 
 - App: **Loose Excel files** mode for workbooks outside the folder structure.

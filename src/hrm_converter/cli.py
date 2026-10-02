@@ -100,6 +100,8 @@ def format_summary(result: RunResult) -> str:
         f"  Warnings / errors   : {result.warning_count} / {result.error_count}",
         f"  Lots needing fixes  : {int((check['Verdict'] != 'OK').sum())} of {len(check)}"
         " (folder structure)",
+        f"  Proposed folder fixes: {len(result.fix_plan)}"
+        + (f" (review {result.fix_script_path})" if result.fix_script_path else ""),
         f"  Output workbook     : {result.output_path}",
         f"  Log file            : {result.log_path}",
     ]

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hrm_converter.config import Config
+from hrm_converter.fixplan import propose_file_moves, propose_panel_rename, propose_side_rename
 from hrm_converter.hierarchy import (
     is_machine_folder,
     list_dirs,
@@ -67,6 +68,8 @@ def _report_misplaced(
 ) -> None:
     """Excel files above the side-folder level are never read: say so instead of staying silent."""
     names = _excel_names(folder, config)
+    if names and level == "panel":
+        propose_file_moves(folder, names, config, issues)
     if names:
         issues.warning(
             "misplaced_workbook",
@@ -211,6 +214,7 @@ def _buildup_candidates(
                     field="Panel",
                     relative_path=panel_rel,
                 )
+                propose_panel_rename(panel_dir, issues)
                 continue
             side_dirs = list_dirs(panel_dir, issues)
             if not side_dirs:
@@ -230,6 +234,7 @@ def _buildup_candidates(
                         field="Side",
                         relative_path=side_rel,
                     )
+                    propose_side_rename(side_dir, config, issues)
                     continue
                 context = WorkbookContext(
                     project_name=buildup.project_name,

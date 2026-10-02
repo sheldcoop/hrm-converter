@@ -16,7 +16,8 @@ their measurements into one consolidated long-format Excel workbook.
 
 2. **Choose the folder.** In the sidebar, paste the path of a Project, Part
    Number, Lot or Buildup folder into the first box, or press **Browse…**.
-   Quotes around a pasted path are fine.
+   Quotes around a pasted path are fine. The app remembers the last folder and
+   limits path you converted with and fills them in next time.
 
 3. **Add limits (optional).** The limits file is an Excel workbook that *you*
    keep, anywhere you like (for example next to your data). It is not part of
@@ -309,12 +310,17 @@ you want, as the shipped `config.yaml` does.
 ## Long-format schema
 
 Sheet `Long`, these 16 columns in this order. One row is one metric value of
-one feature on one unit or coupon. Next to `Source_File` comes `Open_File`: a
-clickable "📂 Open" cell that opens the source workbook the row came from. It
-holds the full path as it was at conversion time, so it works on a computer
-that sees the file under the same path (same drive letter or network share);
-it is blank for uploaded loose files, which have no path. After that come
-three limit columns, `LSL`, `Target` and `USL`: the limits that apply to that row, taken from the
+one feature on one unit or coupon. In the Long sheet, three limit columns sit
+right after `Unit_of_Measurement`, so a value and its limits can be copied
+together, and `Source_File` moves to the end, followed by `Open_File`:
+
+`… Value | Unit_of_Measurement | LSL | Target | USL | Source_File | Open_File`
+
+`Open_File` is a clickable "📂 Open" cell that opens the source workbook the
+row came from. It holds the full path as it was at conversion time, so it
+works on a computer that sees the file under the same path (same drive letter
+or network share); it is blank for uploaded loose files, which have no path.
+`LSL`, `Target` and `USL` are the limits that apply to that row, taken from the
 reference workbook. They are blank when no reference workbook is given or no
 row of it fits (see [Wide format and limits](#wide-format-and-limits) for the
 matching rules).
@@ -444,6 +450,42 @@ If the selected folder itself cannot be recognised as a Project, Part Number,
 Lot or Buildup folder (for example no `HRM` folder anywhere below it), the run
 stops with a message that names what was found.
 
+### Fix plan
+
+For the few problems whose repair is unambiguous, the converter writes down
+what it would do. It **never changes source folders itself**.
+
+- `Fix_Plan` sheet (and the Summary page of the app): one row per proposed
+  action with `Action`, `From`, `To` and `Reason`.
+- A script next to the output workbook, `fix_folders.bat` on Windows and
+  `fix_folders.sh` elsewhere (also downloadable in the app). Read it, delete
+  the lines you do not want, run it yourself, then convert again. It never
+  overwrites: if a target already exists, that line is skipped.
+
+What gets a proposal:
+
+| Problem | Proposal |
+|---|---|
+| Panel folder with exactly one number in its name (`Pnl 7`) | Rename to `Panel 7` |
+| Side folder naming exactly one side (`Back (remeasure)`) | Rename to `back` (or `Coupon back`) |
+| Buildup folder with exactly one number (`Buildup 2`) | Rename to `BU02` |
+| Workbook lying in a panel folder whose file name states its side | Move into that side folder |
+
+Anything ambiguous (two sides in a name, no number, a target that already
+exists or already holds a workbook) gets no proposal and is only reported.
+
+## Sanity checks on values
+
+These only report, in `Validation_Issues`; values are never changed. Settings
+are under `quality` in `config.yaml`.
+
+| Check | Reported when |
+|---|---|
+| `value_order` | Min, Mean and Max of one unit and feature are out of order. Recognised from the metric names (`Min_Stepheight`, `Rz_Max`, …), so new metrics are covered. |
+| `negative_value` | A value is below zero. |
+| `suspicious_value` | A value is more than `outlier_factor` (default 10) times larger or smaller than the median of the same feature and metric in its workbook: usually a decimal point or unit mistake. Needs at least three values; a true zero is not reported. |
+| `duplicate_workbook` | A workbook has exactly the same content as another one in the run, which usually means a copy in the wrong folder. Both are converted, because the converter cannot know which folder is right. |
+
 ## Error and warning behaviour
 
 One problem file never stops the run. Everything below is written to the
@@ -483,6 +525,7 @@ Written to `output/hrm_long_format.xlsx` by default, as static values:
    message, how to fix it, hierarchy value, workbook value and relative path.
 4. `Folder_Check` – one row per lot: is the folder structure usable, and what
    is wrong with it.
+5. `Fix_Plan` – proposed folder repairs (see [Fix plan](#fix-plan)).
 
 Each sheet is an Excel table with a frozen header row, filters and sized
 columns. The converter refuses to write into an `HRM` source folder and never

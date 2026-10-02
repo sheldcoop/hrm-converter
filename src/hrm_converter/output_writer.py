@@ -17,6 +17,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from hrm_converter.config import Config
 from hrm_converter.hierarchy import is_machine_folder
 from hrm_converter.models import (
+    FIX_PLAN_COLUMNS,
     FOLDER_CHECK_COLUMNS,
     ISSUE_COLUMNS,
     LONG_SHEET_COLUMNS,
@@ -36,6 +37,7 @@ EXCEL_MAX_ROWS = 1_048_576
 SUMMARY_SHEET = "Processing_Summary"
 ISSUES_SHEET = "Validation_Issues"
 FOLDER_CHECK_SHEET = "Folder_Check"
+FIX_PLAN_SHEET = "Fix_Plan"
 _ILLEGAL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 _WIDTH_SAMPLE_ROWS = 500
 OPEN_FILE_LABEL = "\U0001f4c2 Open"
@@ -84,13 +86,14 @@ def open_file_link(path: str) -> str | None:
 def long_frame(
     records: list[LongRecord], limits: Sequence[LimitValues] | None = None
 ) -> pd.DataFrame:
-    """The Long sheet: schema columns, Open_File link, then LSL / Target / USL."""
+    """The Long sheet: schema columns, LSL / Target / USL, then Source_File and its link."""
     blank: LimitValues = (None, None, None)
     rows = [
         (
-            *record.as_row(),
-            open_file_link(record.source_path),
+            *record.as_row()[:-1],
             *(limits[position] if limits else blank),
+            record.source_file,
+            open_file_link(record.source_path),
         )
         for position, record in enumerate(records)
     ]
@@ -180,6 +183,12 @@ def folder_check_frame(result: RunResult) -> pd.DataFrame:
     return _frame(rows, FOLDER_CHECK_COLUMNS)
 
 
+def fix_plan_frame(result: RunResult) -> pd.DataFrame:
+    """Proposed folder repairs, one per row. The converter never applies them itself."""
+    rows = [(p.action, str(p.source), str(p.target), p.reason) for p in result.fix_plan]
+    return _frame(rows, FIX_PLAN_COLUMNS)
+
+
 def format_sheet(sheet: Worksheet, frame: pd.DataFrame, table_name: str) -> None:
     sheet.freeze_panes = "A2"
     last_column = get_column_letter(len(frame.columns))
@@ -213,6 +222,7 @@ def write_output(result: RunResult, config: Config, path: Path) -> Path:
         (SUMMARY_SHEET, summary_frame(result.file_results), "tblProcessingSummary"),
         (ISSUES_SHEET, issues_frame(result.issues), "tblValidationIssues"),
         (FOLDER_CHECK_SHEET, folder_check_frame(result), "tblFolderCheck"),
+        (FIX_PLAN_SHEET, fix_plan_frame(result), "tblFixPlan"),
     ]
     names = [name for name, _, _ in frames]
     if len(set(names)) != len(names) or not 0 < len(config.output.sheet_name) <= 31:

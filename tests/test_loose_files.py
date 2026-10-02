@@ -67,10 +67,9 @@ def test_bad_and_duplicate_files_are_reported_not_fatal(tmp_path: Path, config: 
         [(good.name, good), ("broken.xlsx", io.BytesIO(b"not excel")), (good.name, good)], config
     )
     assert (result.processed_count, result.skipped_count) == (1, 2)
-    assert [issue.category for issue in result.issues] == [
-        "unreadable_workbook",
-        "duplicate_file_name",
-    ]
+    # (The synthetic values are not physically ordered, so value_order warnings are expected.)
+    found = [issue.category for issue in result.issues if issue.category != "value_order"]
+    assert found == ["unreadable_workbook", "duplicate_file_name"]
     assert len(result.records) == 24
 
 

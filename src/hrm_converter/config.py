@@ -120,6 +120,12 @@ DEFAULTS: dict[str, Any] = {
         "filename": "hrm_long_format.xlsx",
         "sheet_name": "Long",
     },
+    "quality": {
+        "order_check": True,
+        "negative_check": True,
+        "outlier_factor": 10,
+        "duplicate_file_check": True,
+    },
     "wide": {
         "filename": "hrm_wide_format.xlsx",
         "reference_path": None,
@@ -222,6 +228,14 @@ class OutputConfig:
 
 
 @dataclass(frozen=True)
+class QualityConfig:
+    order_check: bool
+    negative_check: bool
+    outlier_factor: float | None
+    duplicate_file_check: bool
+
+
+@dataclass(frozen=True)
 class WideConfig:
     filename: str
     reference_path: Path | None
@@ -246,6 +260,7 @@ class Config:
     metrics: MetricConfig
     units: UnitConfig
     output: OutputConfig
+    quality: QualityConfig
     wide: WideConfig
     logging: LoggingConfig
 
@@ -309,6 +324,18 @@ def _unit_rules(raw: dict[str, Any]) -> dict[str, UnitRule]:
             raise ConfigError(f"units.feature_rules.{feature}.scale must be a number.") from exc
         rules[normalize_key(feature)] = UnitRule(unit=str(rule["unit"]), scale=scale)
     return rules
+
+
+def _factor(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        factor = float(str(value))
+    except ValueError as exc:
+        raise ConfigError("Setting 'quality.outlier_factor' must be a number or null.") from exc
+    if factor <= 1:
+        raise ConfigError("Setting 'quality.outlier_factor' must be greater than 1 (or null).")
+    return factor
 
 
 def build_config(user: dict[str, Any] | None = None) -> Config:
@@ -390,6 +417,12 @@ def build_config(user: dict[str, Any] | None = None) -> Config:
             directory=Path(str(out["directory"])),
             filename=str(out["filename"]),
             sheet_name=str(out["sheet_name"]),
+        ),
+        quality=QualityConfig(
+            order_check=bool(raw["quality"]["order_check"]),
+            negative_check=bool(raw["quality"]["negative_check"]),
+            outlier_factor=_factor(raw["quality"]["outlier_factor"]),
+            duplicate_file_check=bool(raw["quality"]["duplicate_file_check"]),
         ),
         wide=WideConfig(
             filename=str(raw["wide"]["filename"]),

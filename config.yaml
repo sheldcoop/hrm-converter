@@ -119,6 +119,15 @@ output:
   filename: hrm_long_format.xlsx
   sheet_name: Long
 
+# Sanity checks. They only report (Validation_Issues); values are never changed.
+quality:
+  order_check: true              # Min <= Mean <= Max within one unit and feature
+  negative_check: true           # any value below zero
+  # A value this many times larger or smaller than the median of the same feature
+  # and metric in its workbook is reported (typing or unit mistake). null = off.
+  outlier_factor: 10
+  duplicate_file_check: true     # the same workbook content found in two places
+
 # Wide format (python -m hrm_converter.wide): one sheet per feature, with limits.
 wide:
   filename: hrm_wide_format.xlsx

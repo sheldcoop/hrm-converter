@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 
 from hrm_converter.config import Config, normalize_key
-from hrm_converter.models import Issue, Severity, WorkbookContext
+from hrm_converter.models import FixProposal, Issue, Severity, WorkbookContext
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ class IssueCollector:
 
     def __init__(self) -> None:
         self._issues: list[Issue] = []
+        self.proposals: list[FixProposal] = []  # safe folder repairs, for the fix plan
 
     def add(self, issue: Issue) -> None:
         self._issues.append(issue)
@@ -164,6 +165,14 @@ FIX_HINTS: dict[str, str] = {
     "extra_sheets": "Only the first sheet is read. Move the summary to the first sheet if it "
     "is not there.",
     "duplicate_file_name": "Rename one of the files so every uploaded file has its own name.",
+    "value_order": "Check the Min, Mean and Max cells of this unit in the workbook: they are "
+    "out of order (often two columns swapped or a typing mistake).",
+    "negative_value": "Check this value in the workbook. If negative values are normal for this "
+    "metric, set quality.negative_check to false in config.yaml.",
+    "suspicious_value": "Check this value in the workbook: a decimal point, a unit or a column "
+    "may be wrong. If it is real, nothing needs fixing.",
+    "duplicate_workbook": "The same workbook content is stored in two places. Delete the copy "
+    "that is in the wrong folder; both were converted in the meantime.",
     "reference_row": "Correct this row in the limits workbook.",
     "reference_conflict": "Fill in one more key cell on one of the clashing limit rows so it "
     "becomes the more specific one.",
@@ -187,6 +196,7 @@ FOLDER_CATEGORIES = frozenset(
         "multiple_workbooks",
         "metadata_conflict",
         "unreadable_folder",
+        "duplicate_workbook",
     }
 )
 

@@ -104,7 +104,7 @@ def demo_block(
 ) -> Block:
     """A block whose values sit near ``base``, shifted a little per unit and per file."""
     template = make_block(label, headers, 0, units)
-    shift = (file_number % 7) * 0.01
+    shift = file_number * 0.003  # every workbook differs a little from every other
     rows = [
         (
             unit_label,

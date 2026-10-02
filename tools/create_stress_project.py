@@ -17,7 +17,7 @@ What it contains:
 * one Buildup, ``BU08`` in the first lot, that holds one **problem case per
   panel folder** (see ``PROBLEM_CASES``): several workbooks in a folder,
   corrupt and empty files, wrong file names, metadata conflicts, bad folder
-  names and so on;
+  names (three of which have a proposed repair in the fix plan) and so on;
 * a limits workbook, ``Stress_Reference.xlsx``, with good rows and a few
   deliberately bad ones.
 
@@ -104,8 +104,13 @@ class Maker:
     rng: random.Random
     level: float = 1.0  # per-Buildup shift, so Buildups differ visibly
 
-    def values(self, base: Sequence[float]) -> list[Cell]:
-        return [round(value * self.level * (1 + self.rng.gauss(0, 0.012)), 5) for value in base]
+    def values(self, base: Sequence[float], ordered: bool = False) -> list[Cell]:
+        """Random values around ``base``; ``ordered`` keeps Max >= Mean >= Min in columns 0-2."""
+        made = [round(value * self.level * (1 + self.rng.gauss(0, 0.012)), 5) for value in base]
+        if ordered:
+            high, middle, low = sorted(made[:3], reverse=True)
+            made[:3] = [high, low, middle]  # column order is Max, Min, Mean
+        return list(made)
 
     def block(
         self,
@@ -115,8 +120,9 @@ class Maker:
         units: Sequence[int] = UNITS_9,
         with_header_row: bool = True,
     ) -> Block:
+        ordered = [str(h) for h in headers[:3]] == list(PAD_HEADERS[:3])
         rows = [
-            (f"Unit {unit}", label if position == 0 else None, self.values(base))
+            (f"Unit {unit}", label if position == 0 else None, self.values(base, ordered))
             for position, unit in enumerate(units)
         ]
         return Block(label, headers, rows, with_header_row)
@@ -211,6 +217,22 @@ def messy_values(m: Maker) -> list[Block]:
     return [pad, via]
 
 
+def implausible_values(m: Maker) -> list[Block]:
+    """Values the sanity checks should catch: swapped Min/Max, a decimal slip, a negative."""
+    pad = m.block("Pad 1", PAD_HEADERS, PAD_BASE)
+    first, second = pad.rows[0][2], pad.rows[1][2]
+    pad = with_cells(
+        pad,
+        {
+            (0, 0): first[1],  # Max and Min swapped on the first unit
+            (0, 1): first[0],
+            (1, 3): round(float(str(second[3])) * 100, 5),  # Radius typed 100 times too large
+            (2, 5): -1.8,  # negative Bump
+        },
+    )
+    return [pad, m.block("via 1", VIA_HEADERS, VIA_BASE)]
+
+
 def operator_notes(m: Maker) -> list[Block]:
     pad = with_note(m.block("Pad 1", PAD_HEADERS, PAD_BASE), 4, "scratched - not measurable", True)
     trace = with_note(m.block("Trace 1", TRACE_HEADERS, TRACE_BASE), 2, "re-measured", False)
@@ -284,6 +306,7 @@ KINDS: tuple[tuple[str, Callable[[Maker], list[Block]]], ...] = (
     ("block without a label", unlabelled_block),
     ("title row above the blocks", title_rows),
     ("same column twice", duplicate_columns),
+    ("implausible values", implausible_values),
 )
 
 
@@ -384,6 +407,13 @@ def problem_cases(root: Path, part: str, m: Maker) -> list[str]:
         extra_sheets=["Raw data", "Notes"],
     )
     _good(m, folder / "front" / "old", part)
+
+    folder = case(12, "workbook left in the panel folder (fix plan: move into 'back')")
+    _good(m, folder, part, tag="Back")
+    folder = case(13, "side folder named 'Front (remeasure)' (fix plan: rename to 'front')")
+    _good(m, folder / "Front (remeasure)", part)
+    described.append("'Pnl 14': misspelled panel folder (fix plan: rename to 'Panel 14')")
+    _good(m, process / "Pnl 14" / "front", part)
 
     described.append("Panel 11: empty panel folder")
     (process / "Panel 11").mkdir(parents=True)

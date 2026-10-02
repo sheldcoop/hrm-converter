@@ -27,12 +27,19 @@ LONG_COLUMNS: tuple[str, ...] = (
     "Source_File",
 )
 
-# The Long sheet = the 16 schema columns, then a clickable link that opens the source
-# workbook, then the limits that apply to each value (blank when no reference workbook
-# was given or no row of it fits).
+# The Long sheet: the schema columns with the limits placed right after the value
+# (LSL / Target / USL; blank when no reference workbook was given or no row of it fits),
+# and Source_File plus a clickable link that opens the source workbook at the very end.
 OPEN_FILE_COLUMN = "Open_File"
 LONG_LIMIT_COLUMNS: tuple[str, ...] = ("LSL", "Target", "USL")
-LONG_SHEET_COLUMNS: tuple[str, ...] = (*LONG_COLUMNS, OPEN_FILE_COLUMN, *LONG_LIMIT_COLUMNS)
+LONG_SHEET_COLUMNS: tuple[str, ...] = (
+    *LONG_COLUMNS[:-1],
+    *LONG_LIMIT_COLUMNS,
+    LONG_COLUMNS[-1],
+    OPEN_FILE_COLUMN,
+)
+
+FIX_PLAN_COLUMNS: tuple[str, ...] = ("Action", "From", "To", "Reason")
 LimitValues = tuple[float | None, float | None, float | None]
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
@@ -95,6 +102,16 @@ class OutputError(HrmConverterError):
 
 class WorkbookReadError(Exception):
     """One workbook cannot be opened or contains no readable measurement blocks."""
+
+
+@dataclass(frozen=True)
+class FixProposal:
+    """One safe, reviewable repair of the folder structure (never applied by the app)."""
+
+    action: str  # "Rename folder" or "Move file"
+    source: Path
+    target: Path
+    reason: str
 
 
 class FolderRole(str, Enum):
@@ -271,6 +288,8 @@ class RunResult:
     scope: Scope | None  # None for loose files without a folder hierarchy
     records: list[LongRecord] = field(default_factory=list)
     record_limits: list[LimitValues] = field(default_factory=list)  # parallel to records
+    fix_plan: list[FixProposal] = field(default_factory=list)
+    fix_script_path: Path | None = None
     file_results: list[FileResult] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)
     hrm_folder_count: int = 0

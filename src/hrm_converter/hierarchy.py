@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from hrm_converter.config import Config, normalize_key
+from hrm_converter.fixplan import propose_buildup_rename
 from hrm_converter.models import BuildupFolder, FolderRole, HierarchyError, Scope
 from hrm_converter.validation import IssueCollector, natural_key
 
@@ -196,6 +197,7 @@ def detect_scope(start: Path, config: Config, issues: IssueCollector) -> Scope:
                     field="Buildup",
                     relative_path=relative,
                 )
+                propose_buildup_rename(folder, issues)
                 continue
             buildup = folder.name.strip()
         if not (

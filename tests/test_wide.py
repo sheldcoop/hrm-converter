@@ -309,7 +309,10 @@ def test_long_table_carries_limits_per_row(
     assert len(result.record_limits) == len(result.records) == 244
     assert result.output_path is not None
     long = read_long(result.output_path, config)
-    assert list(long.columns)[-3:] == ["LSL", "Target", "USL"]
+    # Limits sit right after the value; Source_File and its link close the row.
+    assert list(long.columns)[-7:] == [
+        "Value", "Unit_of_Measurement", "LSL", "Target", "USL", "Source_File", "Open_File",
+    ]  # fmt: skip
 
     radius = long[(long["Feature_Type"] == "Pad") & (long["Metric"] == "Radius")]
     general = radius[radius["Buildup"] != "BU-02"]

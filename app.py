@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import io
+import json
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -25,9 +26,11 @@ if str(APP_DIR / "src") not in sys.path:
     sys.path.insert(0, str(APP_DIR / "src"))
 
 from hrm_converter.config import Config, load_config  # noqa: E402
+from hrm_converter.fixplan import fix_script, script_name  # noqa: E402
 from hrm_converter.logging_setup import close_logging, setup_logging  # noqa: E402
 from hrm_converter.models import OPEN_FILE_COLUMN, HrmConverterError, RunResult  # noqa: E402
 from hrm_converter.output_writer import (  # noqa: E402
+    fix_plan_frame,
     folder_check_frame,
     issues_frame,
     long_frame,
@@ -70,6 +73,31 @@ def base_config() -> Config:
         output=dataclasses.replace(config.output, directory=APP_DIR / config.output.directory),
         logging=dataclasses.replace(config.logging, directory=APP_DIR / config.logging.directory),
     )
+
+
+def _last_file() -> Path:
+    return base_config().output.directory / "last_run.json"
+
+
+def load_last() -> dict[str, str]:
+    """Folder and limits path of the previous conversion, so they need not be pasted again."""
+    try:
+        saved = json.loads(_last_file().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: str(v) for k, v in saved.items()} if isinstance(saved, dict) else {}
+
+
+def save_last(folder: str, reference_path: str) -> None:
+    try:
+        path = _last_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"folder": folder, "reference_path": reference_path}, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # remembering is a convenience; never fail a conversion over it
 
 
 def _picker_command() -> list[str]:
@@ -148,20 +176,22 @@ def convert(
             result = run_loose_files(uploads, config, open_reference(), reference_name)
         else:
             result = run_conversion(Path(folder), config, open_reference(), reference_name)
-    finally:
-        close_logging()
-    result.log_path = log_path
+        result.log_path = log_path
 
-    # The long table carries LSL / Target / USL per row; the wide one is derived from it.
-    long = long_frame(result.records, result.record_limits)
-    issues = IssueCollector()
-    source = open_reference()
-    reference = (
-        load_reference(source, config, issues, name=reference_name) if source is not None else None
-    )
-    wide = build_wide(long, reference, config, issues)
-    assert result.output_path is not None
-    wide_path = write_wide(wide, result.output_path.with_name(config.wide.filename))
+        # The long table carries LSL / Target / USL per row; the wide one is derived from it.
+        long = long_frame(result.records, result.record_limits)
+        issues = IssueCollector()
+        source = open_reference()
+        reference = (
+            load_reference(source, config, issues, name=reference_name)
+            if source is not None
+            else None
+        )
+        wide = build_wide(long, reference, config, issues)
+        assert result.output_path is not None
+        wide_path = write_wide(wide, result.output_path.with_name(config.wide.filename))
+    finally:
+        close_logging()  # after the wide step, so its issues reach the log file too
     return Run(result, long, wide, wide_path, reference_name)
 
 
@@ -228,6 +258,11 @@ def render_nav(options: list[str], state_key: str) -> str:
 
 def render_sidebar() -> None:
     config = base_config()
+    last = load_last()
+    st.session_state.setdefault("folder", last.get("folder", ""))
+    st.session_state.setdefault(
+        "reference_path", last.get("reference_path") or str(config.wide.reference_path or "")
+    )
     with st.sidebar:
         st.header("Source")
         mode = st.radio(
@@ -270,7 +305,6 @@ def render_sidebar() -> None:
         st.text_input(
             "…or path of the reference workbook",
             key="reference_path",
-            value=str(config.wide.reference_path or ""),
             help="Use this when the reference file stays in one place; no upload needed.",
         )
 
@@ -318,6 +352,20 @@ def render_summary(run: Run) -> None:
         else:
             st.success(f"The folder structure is fine in all {len(check)} lot(s).")
         st.dataframe(showable(check), width="stretch", hide_index=True)
+    if result.fix_plan:
+        st.subheader("Fix plan")
+        st.caption(
+            f"{len(result.fix_plan)} folder problem(s) have an unambiguous repair. This app never "
+            f"changes your folders: download the script, read it, delete what you do not want, "
+            f"then run it yourself and convert again."
+        )
+        st.dataframe(showable(fix_plan_frame(result)), width="stretch", hide_index=True)
+        st.download_button(
+            f"Download {script_name()}",
+            fix_script(result.fix_plan),
+            file_name=script_name(),
+            key="download_fix_script",
+        )
     st.subheader("Workbooks")
     st.dataframe(showable(summary_frame(result.file_results)), width="stretch", hide_index=True)
     render_downloads(run, "summary")
@@ -469,6 +517,8 @@ def main() -> None:
                         str(st.session_state.get("reference_path") or "").strip().strip("\"'"),
                         loose_files,
                     )
+                if not loose:
+                    save_last(folder, str(st.session_state.get("reference_path") or "").strip())
             except HrmConverterError as exc:
                 st.session_state.pop("run", None)
                 st.error(str(exc))
