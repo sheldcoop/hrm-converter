@@ -13,6 +13,10 @@
   same engine: Summary, Long, Wide, Issues and Reference pages.
 - `tools/create_demo_project.py`: a clean demo tree with realistic-looking
   values and a demo limits workbook.
+- App styling shared with the QVM dashboard (dark theme, copper accent);
+  out-of-spec cells are tinted red on screen.
+- `tools/create_stress_project.py`: a large, deliberately messy project with
+  many workbook kinds, one problem case per panel folder and a limits workbook.
 
 ## 1.0.0 - 2026-10-02
 

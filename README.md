@@ -424,6 +424,22 @@ workbook, `HRM_Reference_demo.xlsx`. Add `--real-sample "<BU03 Back workbook>"`
 to copy one real file into the matching folder. Then run the converter on the
 project, a lot or a Buildup, and the wide command with the demo reference.
 
+### Stress project: many files, many problems
+
+```bash
+python tools/create_stress_project.py --output ../test_data
+```
+
+A large made-up project (`Orion_Stress_Demo`: two Part Numbers, five Lots, 17
+Buildups, about 330 workbooks) with inconsistently spelled folders and many
+kinds of workbook: annular pads, `Line` instead of `Width`, `Pad Pos 3` labels,
+unknown features and metrics, blank / zero / text values, operator notes,
+missing header rows, duplicate and unlabelled blocks, 36-unit panels. Buildup
+`BU08` of the first lot holds one problem case per panel folder (several
+workbooks in a folder, corrupt and empty files, wrong file names, metadata
+conflicts, bad folder names); the command prints the list. It also writes
+`Stress_Reference.xlsx`, a limits workbook with a few deliberately bad rows.
+
 ## Known limitations
 
 - Only the stacked block layout on the first sheet is supported. Workbooks

@@ -28,6 +28,7 @@ from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 
 from hrm_converter.config import Config, load_config
+from hrm_converter.logging_setup import close_logging, setup_logging
 from hrm_converter.models import LONG_COLUMNS, HrmConverterError, Issue, OutputError
 from hrm_converter.output_writer import format_sheet, issues_frame
 from hrm_converter.reference import (
@@ -362,6 +363,11 @@ def format_summary(result: WideResult, output: Path) -> str:
             f"  Values out of spec  : {result.out_of_spec_count}",
             f"  Warnings / errors   : {warnings} / {errors}",
             f"  Output workbook     : {output}",
+            *(
+                ["  See the 'Wide_Issues' sheet of the output workbook for details."]
+                if warnings or errors
+                else []
+            ),
         ]
     )
 
@@ -403,10 +409,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         issues = IssueCollector()
         reference_path = args.reference or config.wide.reference_path
-        reference = load_reference(reference_path, config, issues) if reference_path else None
-        result = build_wide(long, reference, config, issues)
         output = args.output or long_path.with_name(config.wide.filename)
-        write_wide(result, output)
+        # Issues go to the log file and the Wide_Issues sheet, not to the console.
+        setup_logging(config.logging.directory, config.logging.level)
+        try:
+            reference = load_reference(reference_path, config, issues) if reference_path else None
+            result = build_wide(long, reference, config, issues)
+            write_wide(result, output)
+        finally:
+            close_logging()
     except HrmConverterError as exc:
         print(f"Stopped: {exc}", file=sys.stderr)
         return 1
