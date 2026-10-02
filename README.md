@@ -3,6 +3,53 @@
 Finds HRM Excel summary files in an engineering folder hierarchy and converts
 their measurements into one consolidated long-format Excel workbook.
 
+## Quick start (app)
+
+1. **Start the app.** In a terminal, inside this folder:
+
+   ```bash
+   streamlit run app.py
+   ```
+
+   On Windows you can double-click `run_app.bat` instead. The app opens in
+   your browser at `http://localhost:8502`.
+
+2. **Choose the folder.** In the sidebar, paste the path of a Project, Part
+   Number, Lot or Buildup folder into the first box, or press **Browse…**.
+   Quotes around a pasted path are fine.
+
+3. **Add limits (optional).** The limits file is an Excel workbook that *you*
+   keep, anywhere you like (for example next to your data). It is not part of
+   the source folders and the app never changes it. Give it to the app in one
+   of two ways, both in the sidebar under **Limits**:
+   - **Upload** it with the *Reference workbook* box, or
+   - type its path in *…or path of the reference workbook* (handy when the
+     file always stays in the same place; you can also set it once in
+     `config.yaml` under `wide.reference_path`).
+
+   No limits file yet? Convert once without it, open the **Reference** page and
+   press **Download a template for this data**. Fill in LSL / Target / USL in
+   Excel, save it, and give it to the app as above. The layout and rules are in
+   [Wide format and limits](#wide-format-and-limits).
+
+4. **Press Convert**, then look at the pages:
+
+   | Page | What you see |
+   |---|---|
+   | Summary | How many folders and workbooks were found, processed and skipped, and why |
+   | Long | The long table, with filters and a download button |
+   | Wide | One feature at a time, with limits and out-of-spec values in red |
+   | Issues | Every warning and error from the conversion and from the limits file |
+   | Reference | The limits that were used, and the template download |
+
+5. **Find the results.** Both workbooks are saved in the `output` folder next
+   to the app (`hrm_long_format.xlsx`, `hrm_wide_format.xlsx`) and can be
+   downloaded from the Long and Wide pages. Logs are in `logs`.
+
+To try it without real data, see
+[Demo project](#demo-project-for-a-manual-smoke-test) and
+[Stress project](#stress-project-many-files-many-problems).
+
 ## Purpose and non-goals
 
 **Purpose.** You select a Project, Part Number, Lot Number or Buildup folder.
