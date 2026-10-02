@@ -1,0 +1,271 @@
+"""Typed domain models shared by all modules."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+
+CellValue = int | float | str | None
+
+LONG_COLUMNS: tuple[str, ...] = (
+    "Project_Name",
+    "Part_Number",
+    "Lot_Number",
+    "Lot_Name",
+    "Buildup",
+    "Process",
+    "Panel",
+    "Side",
+    "Location",
+    "Unit",
+    "Feature_Type",
+    "Feature_Number",
+    "Metric",
+    "Value",
+    "Unit_of_Measurement",
+    "Source_File",
+)
+
+SUMMARY_COLUMNS: tuple[str, ...] = (
+    "Project_Name",
+    "Part_Number",
+    "Lot_Number",
+    "Buildup",
+    "Process",
+    "Panel",
+    "Side",
+    "Location",
+    "Source_File",
+    "Relative_Path",
+    "Status",
+    "Reason",
+    "Row_Count",
+)
+
+ISSUE_COLUMNS: tuple[str, ...] = (
+    "Severity",
+    "Category",
+    "Source_File",
+    "Sheet",
+    "Field",
+    "Message",
+    "Hierarchy_Value",
+    "Workbook_Value",
+    "Relative_Path",
+)
+
+
+class HrmConverterError(Exception):
+    """Base class for errors that stop the whole run with a clear message."""
+
+
+class ConfigError(HrmConverterError):
+    """The configuration file is missing, unreadable or invalid."""
+
+
+class HierarchyError(HrmConverterError):
+    """The selected folder does not fit the expected engineering hierarchy."""
+
+
+class OutputError(HrmConverterError):
+    """The output workbook cannot be written safely."""
+
+
+class WorkbookReadError(Exception):
+    """One workbook cannot be opened or contains no readable measurement blocks."""
+
+
+class FolderRole(str, Enum):
+    PROJECT = "Project"
+    PART_NUMBER = "Part Number"
+    LOT_NUMBER = "Lot Number"
+    BUILDUP = "Buildup"
+
+
+class Severity(str, Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+
+class Status(str, Enum):
+    PROCESSED = "Processed"
+    SKIPPED = "Skipped"
+
+
+@dataclass(frozen=True)
+class Issue:
+    """One structured warning or error (a row of the Validation_Issues sheet)."""
+
+    severity: Severity
+    category: str
+    message: str
+    source_file: str = ""
+    sheet: str = ""
+    field: str = ""
+    hierarchy_value: str = ""
+    workbook_value: str = ""
+    relative_path: str = ""
+
+
+@dataclass(frozen=True)
+class BuildupFolder:
+    """A Buildup folder inside the selected scope, with its reconstructed parents."""
+
+    path: Path
+    project_name: str
+    part_number: str
+    lot_number: str
+    buildup: str
+    buildup_folder: str
+
+
+@dataclass(frozen=True)
+class Scope:
+    """Result of role detection for the folder selected by the user."""
+
+    start_path: Path
+    role: FolderRole
+    project_path: Path
+    buildups: tuple[BuildupFolder, ...]
+
+
+@dataclass(frozen=True)
+class WorkbookContext:
+    """All hierarchy-derived metadata for one side/location folder."""
+
+    project_name: str
+    part_number: str
+    lot_number: str
+    lot_name: str
+    buildup: str
+    process: str
+    process_folder: str
+    panel: int
+    side: str
+    location: str
+    folder: Path
+    relative_folder: str
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """One candidate HRM workbook found during traversal."""
+
+    path: Path
+    context: WorkbookContext
+    skip_reason: str | None = None
+
+    @property
+    def relative_path(self) -> str:
+        return f"{self.context.relative_folder}/{self.path.name}"
+
+
+@dataclass(frozen=True)
+class RawRow:
+    """One unit row of a block, exactly as stored in the sheet."""
+
+    excel_row: int
+    unit_label: str
+    note: str | None
+    values: tuple[CellValue, ...]
+
+
+@dataclass(frozen=True)
+class RawBlock:
+    """One stacked measurement block of the HRM summary sheet."""
+
+    start_row: int
+    label: str | None
+    header: tuple[str | None, ...]
+    rows: tuple[RawRow, ...]
+
+
+@dataclass(frozen=True)
+class RawSheet:
+    sheet_name: str
+    blocks: tuple[RawBlock, ...]
+    stray_rows: tuple[int, ...]
+    other_sheets: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LongRecord:
+    """One output row: one metric value of one feature on one unit."""
+
+    project_name: str
+    part_number: str
+    lot_number: str
+    lot_name: str
+    buildup: str
+    process: str
+    panel: int
+    side: str
+    location: str
+    unit: int | str
+    feature_type: str
+    feature_number: int
+    metric: str
+    value: CellValue
+    unit_of_measurement: str
+    source_file: str
+
+    def as_row(self) -> tuple[CellValue, ...]:
+        return (
+            self.project_name,
+            self.part_number,
+            self.lot_number,
+            self.lot_name,
+            self.buildup,
+            self.process,
+            self.panel,
+            self.side,
+            self.location,
+            self.unit,
+            self.feature_type,
+            self.feature_number,
+            self.metric,
+            self.value,
+            self.unit_of_measurement,
+            self.source_file,
+        )
+
+
+@dataclass(frozen=True)
+class FileResult:
+    """One row of the Processing_Summary sheet."""
+
+    candidate: Candidate
+    status: Status
+    reason: str
+    row_count: int
+
+
+@dataclass
+class RunResult:
+    """Everything a run produced; consumed by the output writer and the CLI."""
+
+    scope: Scope
+    records: list[LongRecord] = field(default_factory=list)
+    file_results: list[FileResult] = field(default_factory=list)
+    issues: list[Issue] = field(default_factory=list)
+    hrm_folder_count: int = 0
+    output_path: Path | None = None
+    log_path: Path | None = None
+
+    @property
+    def processed_count(self) -> int:
+        return sum(1 for r in self.file_results if r.status is Status.PROCESSED)
+
+    @property
+    def skipped_count(self) -> int:
+        return sum(1 for r in self.file_results if r.status is Status.SKIPPED)
+
+    @property
+    def warning_count(self) -> int:
+        return sum(1 for i in self.issues if i.severity is Severity.WARNING)
+
+    @property
+    def error_count(self) -> int:
+        return sum(1 for i in self.issues if i.severity is Severity.ERROR)

@@ -1,0 +1,16 @@
+[server]
+headless = true
+port = 8502
+
+[browser]
+gatherUsageStats = false
+
+# Same look as the QVM dashboard: dark base with the copper accent.
+# Setting the accent here (not only in CSS) also colours checkboxes, focus
+# rings, tags and the spinner.
+[theme]
+base = "dark"
+primaryColor = "#B87333"
+backgroundColor = "#212121"
+secondaryBackgroundColor = "#2E2E2E"
+textColor = "#FFFFFF"

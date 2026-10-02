@@ -1,0 +1,93 @@
+/* HRM Converter - same visual language as the QVM dashboard (assets/styles.css there). */
+:root {
+    --panel-color: #B87333;
+    --panel-hover-color: #d48c46;
+    --fail-color: #f38ba8;
+}
+
+h1 {
+    text-align: center;
+    padding-bottom: 20px;
+}
+
+.block-container {
+    padding-top: 3rem !important;
+}
+
+section[data-testid="stSidebar"] {
+    border-right: 2px solid #4A4A4A;
+    box-shadow: 5px 0px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Every button: rectangular, with the small "pop" on click. */
+button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-secondary"],
+.stDownloadButton > button {
+    border-radius: 6px !important;
+    padding: 8px 20px !important;
+    transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+        background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+
+button[data-testid="stBaseButton-primary"]:active,
+button[data-testid="stBaseButton-secondary"]:active,
+.stDownloadButton > button:active {
+    transform: scale(0.95) !important;
+}
+
+/* Primary: the selected page, and the main action. */
+button[data-testid="stBaseButton-primary"] {
+    background-color: var(--panel-color) !important;
+    color: #FFFFFF !important;
+    border: 1px solid var(--panel-color) !important;
+    font-weight: bold;
+}
+
+button[data-testid="stBaseButton-primary"]:hover {
+    background-color: var(--panel-hover-color) !important;
+    border-color: var(--panel-hover-color) !important;
+}
+
+/* Secondary: the other pages. */
+button[data-testid="stBaseButton-secondary"] {
+    background-color: transparent !important;
+    color: var(--panel-color) !important;
+    border: 1px solid var(--panel-color) !important;
+}
+
+button[data-testid="stBaseButton-secondary"]:hover {
+    border-color: var(--panel-hover-color) !important;
+    color: var(--panel-hover-color) !important;
+}
+
+/* Downloads: filled copper, like the QVM export button. */
+.stDownloadButton > button {
+    background-color: var(--panel-color) !important;
+    color: #FFFFFF !important;
+    border: 1px solid #000000 !important;
+    font-weight: bold;
+}
+
+.stDownloadButton > button:hover {
+    background-color: var(--panel-hover-color) !important;
+    border: 1px solid #FFFFFF !important;
+}
+
+/* Keyboard focus stays visible on every button. */
+button[data-testid^="stBaseButton"]:focus-visible,
+.stDownloadButton > button:focus-visible {
+    outline: 2px solid var(--panel-hover-color) !important;
+    outline-offset: 2px;
+}
+
+/* Summary numbers: grey label, large copper value. */
+[data-testid="stMetricLabel"] p {
+    color: #A0A0A0;
+    font-size: 16px;
+}
+
+[data-testid="stMetricValue"] {
+    font-size: 32px;
+    color: var(--panel-color);
+    font-weight: bold;
+}

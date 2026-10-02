@@ -1,0 +1,132 @@
+# =====================================================================
+#  HRM converter - settings
+#  Run:  python -m hrm_converter --input "<selected folder>" --config config.yaml
+#  Every section is optional; anything left out uses the built-in default.
+# =====================================================================
+
+input:
+  # Project, Part Number, Lot Number or Buildup folder.
+  # null -> use --input, or a folder picker pops up.
+  start_path: null
+  accepted_extensions:
+    - .xlsx
+  ignore_filename_prefixes:
+    - "~$"                       # temporary files Excel creates while a workbook is open
+  # Only Excel files matching one of these names are HRM workbooks (case-insensitive).
+  # Other Excel files in a side folder are reported and ignored. Use "*" to accept all.
+  filename_patterns:
+    - "*_Summary.xlsx"
+
+# Filters inside the selected folder: 'all' or a list.
+scope:
+  part_numbers: all              # e.g. [FHR0020]
+  lot_numbers: all               # e.g. ['19197', '19198']
+  buildups: all                  # e.g. [BU-03]   (BU03 / BU 3 also ok)
+  machine_folder: HRM            # the only machine folder that is entered
+
+# How folder names are read. Patterns are case-insensitive regular expressions.
+hierarchy:
+  buildup_pattern: '^BU[\s\-_]*0*(?P<number>\d+)$'
+  buildup_format: 'BU-{number:02d}'        # BU03 -> BU-03
+  # true: a folder that contains HRM but is not named like a Buildup is an error.
+  require_buildup_pattern: true
+  # 'post DDV_HRM-2026-0088' -> 'Post DDV'. No process name is hardcoded.
+  process_pattern: '^(?P<name>.+?)[\s_\-]+HRM[\s_\-]*\d.*$'
+  panel_pattern: '^Panel[\s\-_]*0*(?P<number>\d+)$'
+  coupon_keyword: coupon                   # 'Coupon front' -> Location = Coupon
+  sides:
+    front: Front
+    back: Back
+
+# Lot_Name is not in the folder path or in the workbook, so it is typed here.
+metadata:
+  default_lot_name: ''
+  lot_names: {}                  # per lot, e.g. {'19197': 'DOE Lot', '19198': 'Reference Lot'}
+
+# Cross-check of the folder hierarchy against the workbook's sheet name / file name
+# (for example sheet 'ENG_FHR0020_BU03_Back'). Buildup and Side are always checked.
+cross_check:
+  # Reads the Part Number from the sheet name. null switches this check off.
+  sheet_part_number_pattern: '^[A-Za-z0-9]+_(?P<part_number>.+?)_BU[\s\-]?\d+'
+
+processing:
+  # true: a file whose sheet/file name contradicts its folders is skipped.
+  # false: the folder value is used and the disagreement is logged.
+  strict_metadata_conflicts: true
+  multiple_files_policy: error_and_skip    # or: newest
+  skip_blank_metric_values: true
+  preserve_zero_values: true
+  text_value_policy: skip_and_report       # or: keep_as_text
+  coerce_numeric_text: true                # '16,5' stored as text -> 16.5, with a warning
+
+# Block label in column B (number removed, lower case) -> Feature_Type.
+# Unknown labels are kept as written and reported as a new feature type.
+features:
+  aliases:
+    pad: Pad
+    pad pos: Pad
+    sr pad: SR Pad
+    sr pad pos: SR Pad
+    landing pad: Landing_Pad
+    landing pad pos: Landing_Pad
+    trace: Trace
+    trace pos: Trace
+    via: Via
+    via pos: Via
+    roughness: Roughness
+  default_feature_number: 1                # for labels without a number, e.g. 'roughness'
+
+metrics:
+  # Header text (lower case) -> Metric. Headers not listed are written as they are.
+  aliases:
+    max stepheight: Max_Stepheight
+    min stepheight: Min_Stepheight
+    mean stepheight: Mean_Stepheight
+    radius: Radius
+    diameter: Diameter
+    outer radius: Outer_Radius
+    inner radius: Inner_Radius
+    dimple: Dimple
+    bump: Bump
+    width: Width
+    line: Width
+    space: Space
+  # Feature types whose metric names come from the column position, not from the
+  # header text (the roughness headers are typed by the operator and can be wrong).
+  positional:
+    Roughness: [Rz_Mean, Rz_Std_dev, Rz_Min, Rz_Max, Ra_Mean, Ra_Std_dev, Ra_Min, Ra_Max]
+
+units:
+  # Metric -> Unit_of_Measurement. Metrics not listed get a blank unit.
+  metric_units:
+    Max_Stepheight: µm
+    Min_Stepheight: µm
+    Mean_Stepheight: µm
+    Radius: µm
+    Diameter: µm
+    Outer_Radius: µm
+    Inner_Radius: µm
+    Dimple: µm
+    Bump: µm
+    Width: µm
+    Space: µm
+  # Whole feature types: unit, and a factor the source value is multiplied by.
+  feature_rules:
+    Roughness: {unit: nm, scale: 1000}     # HRM stores roughness in µm
+
+output:
+  directory: output
+  filename: hrm_long_format.xlsx
+  sheet_name: Long
+
+# Wide format (python -m hrm_converter.wide): one sheet per feature, with limits.
+wide:
+  filename: hrm_wide_format.xlsx
+  # Excel file with LSL / Target / USL per Part Number, Buildup, Side, feature and metric.
+  # null -> wide tables are written without limits (or pass --reference).
+  reference_path: null
+  reference_sheet: Limits
+
+logging:
+  level: INFO
+  directory: logs
