@@ -413,6 +413,37 @@ both; Part Number is compared with the sheet name. A field is only compared
 when the name states it unambiguously. Project, Lot, Process and Panel cannot
 be cross-checked because the workbook does not state them.
 
+## Folder check: is the structure right, and how to fix it
+
+A wrongly built folder never stops the run and is never skipped in silence.
+Whatever can be read is converted, and every structure problem is reported
+with a plain-language instruction.
+
+- **`Folder_Check` sheet** (and the Summary page of the app): one row per lot
+  with the number of Buildups, workbooks processed and skipped, the number of
+  folder problems, a verdict (`OK` or `Needs fixing`) and what kind of problems
+  they are.
+- **`How_To_Fix` column** in `Validation_Issues` (and on the Issues page): what
+  to do about each issue, next to the folder it concerns in `Relative_Path`.
+
+Structure problems that are recognised:
+
+| Problem | What the report says to do |
+|---|---|
+| Excel file lying directly in the HRM, process or panel folder | Move it into its side folder |
+| Excel file in a sub-folder of a side folder (for example `front/old`) | It is not read; move it up if it is the current one |
+| Panel folder directly inside HRM (process folder missing) | Add the process folder in between |
+| Side folder directly inside the process folder (panel folder missing) | Add the panel folder in between |
+| Folder that is not named like a panel or a side | Rename it (`Panel 5`; `front`, `back`, `Coupon front`, `Coupon back`) |
+| Buildup without an `HRM` folder, or the `HRM` parent not named like a Buildup | Create `HRM`, or rename the folder (`BU03`) |
+| Empty process or panel folder; side folder without a workbook | Add the files or delete the folder |
+| Several workbooks in one side folder | Leave exactly one |
+| File name or sheet name contradicts the folder | Move the file or rename the folder |
+
+If the selected folder itself cannot be recognised as a Project, Part Number,
+Lot or Buildup folder (for example no `HRM` folder anywhere below it), the run
+stops with a message that names what was found.
+
 ## Error and warning behaviour
 
 One problem file never stops the run. Everything below is written to the
@@ -449,7 +480,9 @@ Written to `output/hrm_long_format.xlsx` by default, as static values:
 2. `Processing_Summary` – one row per candidate workbook: status
    (`Processed` / `Skipped`), reason and row count.
 3. `Validation_Issues` – severity, category, source file, sheet, field,
-   message, hierarchy value, workbook value and relative path.
+   message, how to fix it, hierarchy value, workbook value and relative path.
+4. `Folder_Check` – one row per lot: is the folder structure usable, and what
+   is wrong with it.
 
 Each sheet is an Excel table with a frozen header row, filters and sized
 columns. The converter refuses to write into an `HRM` source folder and never

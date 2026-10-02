@@ -58,9 +58,22 @@ ISSUE_COLUMNS: tuple[str, ...] = (
     "Sheet",
     "Field",
     "Message",
+    "How_To_Fix",
     "Hierarchy_Value",
     "Workbook_Value",
     "Relative_Path",
+)
+
+
+FOLDER_CHECK_COLUMNS: tuple[str, ...] = (
+    "Part_Number",
+    "Lot_Number",
+    "Buildups",
+    "Workbooks_Processed",
+    "Workbooks_Skipped",
+    "Folder_Problems",
+    "Verdict",
+    "Problems",
 )
 
 

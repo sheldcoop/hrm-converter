@@ -12,6 +12,7 @@ from hrm_converter import __version__
 from hrm_converter.config import Config, load_config
 from hrm_converter.logging_setup import close_logging, setup_logging
 from hrm_converter.models import HrmConverterError, RunResult
+from hrm_converter.output_writer import folder_check_frame
 from hrm_converter.pipeline import run_conversion
 
 DEFAULT_CONFIG = Path("config.yaml")
@@ -87,6 +88,7 @@ def _apply_overrides(config: Config, args: argparse.Namespace) -> Config:
 def format_summary(result: RunResult) -> str:
     """Concise completion summary; never contains measurement records."""
     assert result.scope is not None  # the command line always converts a folder
+    check = folder_check_frame(result)
     lines = [
         "",
         "HRM conversion finished",
@@ -96,11 +98,16 @@ def format_summary(result: RunResult) -> str:
         f"  Workbooks skipped   : {result.skipped_count}",
         f"  Output rows         : {len(result.records)}",
         f"  Warnings / errors   : {result.warning_count} / {result.error_count}",
+        f"  Lots needing fixes  : {int((check['Verdict'] != 'OK').sum())} of {len(check)}"
+        " (folder structure)",
         f"  Output workbook     : {result.output_path}",
         f"  Log file            : {result.log_path}",
     ]
     if result.warning_count or result.error_count:
-        lines.append("  See the 'Validation_Issues' sheet of the output workbook for details.")
+        lines.append(
+            "  See the 'Folder_Check' and 'Validation_Issues' sheets of the output workbook "
+            "for what to fix."
+        )
     return "\n".join(lines)
 
 

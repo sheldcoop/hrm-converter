@@ -9,6 +9,10 @@
   (`--reference` on the command line).
 - Long table: `Open_File` column next to `Source_File`, a clickable link that
   opens the source workbook.
+- Folder check: Excel files at the wrong folder level and missing process or
+  panel folders are now reported instead of being ignored; every issue has a
+  `How_To_Fix` instruction; a `Folder_Check` sheet and Summary table give a
+  verdict per lot.
 - App: both workbooks can be downloaded from the Summary page.
 - App runs under any Streamlit installation, accepts pasted paths in quotes,
   and the Browse button uses the operating system's folder dialog.

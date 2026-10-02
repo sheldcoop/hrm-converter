@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from hrm_converter.config import Config
 from hrm_converter.hierarchy import is_machine_folder
 from hrm_converter.models import (
+    FOLDER_CHECK_COLUMNS,
     ISSUE_COLUMNS,
     LONG_SHEET_COLUMNS,
     OPEN_FILE_COLUMN,
@@ -26,11 +28,14 @@ from hrm_converter.models import (
     LongRecord,
     OutputError,
     RunResult,
+    Status,
 )
+from hrm_converter.validation import FOLDER_CATEGORIES, fix_hint, natural_key
 
 EXCEL_MAX_ROWS = 1_048_576
 SUMMARY_SHEET = "Processing_Summary"
 ISSUES_SHEET = "Validation_Issues"
+FOLDER_CHECK_SHEET = "Folder_Check"
 _ILLEGAL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 _WIDTH_SAMPLE_ROWS = 500
 OPEN_FILE_LABEL = "\U0001f4c2 Open"
@@ -123,6 +128,7 @@ def issues_frame(issues: list[Issue]) -> pd.DataFrame:
             i.sheet,
             i.field,
             _clean(i.message),
+            fix_hint(i.category),
             i.hierarchy_value,
             i.workbook_value,
             i.relative_path,
@@ -130,6 +136,48 @@ def issues_frame(issues: list[Issue]) -> pd.DataFrame:
         for i in issues
     ]
     return _frame(rows, ISSUE_COLUMNS)
+
+
+def folder_check_frame(result: RunResult) -> pd.DataFrame:
+    """One row per lot: is its folder structure usable, and what is wrong with it?"""
+    lots: dict[tuple[str, str], dict[str, object]] = {}
+
+    def lot(part: str, number: str) -> dict[str, object]:
+        return lots.setdefault(
+            (part, number), {"buildups": set(), "processed": 0, "skipped": 0, "problems": Counter()}
+        )
+
+    if result.scope is not None:
+        for buildup in result.scope.buildups:
+            entry = lot(buildup.part_number, buildup.lot_number)
+            entry["buildups"].add(buildup.buildup)  # type: ignore[attr-defined]
+        for file in result.file_results:
+            context = file.candidate.context
+            key = "processed" if file.status is Status.PROCESSED else "skipped"
+            entry = lot(context.part_number, context.lot_number)
+            entry[key] += 1  # type: ignore[operator]
+        for issue in result.issues:
+            parts = issue.relative_path.split("/")
+            if issue.category in FOLDER_CATEGORIES and len(parts) >= 3:
+                lot(parts[1], parts[2])["problems"][issue.category] += 1  # type: ignore[index]
+
+    rows = []
+    for (part, number), entry in sorted(lots.items(), key=lambda i: tuple(map(natural_key, i[0]))):
+        problems: Counter[str] = entry["problems"]  # type: ignore[assignment]
+        count = sum(problems.values())
+        rows.append(
+            (
+                part,
+                number,
+                len(entry["buildups"]),  # type: ignore[arg-type]
+                entry["processed"],
+                entry["skipped"],
+                count,
+                "Needs fixing" if count else "OK",
+                "; ".join(f"{n} x {category}" for category, n in sorted(problems.items())),
+            )
+        )
+    return _frame(rows, FOLDER_CHECK_COLUMNS)
 
 
 def format_sheet(sheet: Worksheet, frame: pd.DataFrame, table_name: str) -> None:
@@ -164,6 +212,7 @@ def write_output(result: RunResult, config: Config, path: Path) -> Path:
         (config.output.sheet_name, long_frame(result.records, result.record_limits), "tblLong"),
         (SUMMARY_SHEET, summary_frame(result.file_results), "tblProcessingSummary"),
         (ISSUES_SHEET, issues_frame(result.issues), "tblValidationIssues"),
+        (FOLDER_CHECK_SHEET, folder_check_frame(result), "tblFolderCheck"),
     ]
     names = [name for name, _, _ in frames]
     if len(set(names)) != len(names) or not 0 < len(config.output.sheet_name) <= 31:

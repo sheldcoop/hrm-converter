@@ -15,7 +15,7 @@ from hrm_converter.hierarchy import (
     parse_side,
 )
 from hrm_converter.models import BuildupFolder, Candidate, Scope, WorkbookContext
-from hrm_converter.validation import IssueCollector, natural_key
+from hrm_converter.validation import EXPECTED_LAYOUT, IssueCollector, natural_key
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,55 @@ def _workbooks(folder: Path, config: Config, exclude: Path | None) -> tuple[list
     return matching, not_matching
 
 
+def _excel_names(folder: Path, config: Config) -> list[str]:
+    """Excel files lying directly in a folder (temporary lock files excluded)."""
+    try:
+        items = sorted(folder.iterdir(), key=lambda p: (natural_key(p.name), p.name))
+    except OSError:
+        return []
+    return [
+        item.name
+        for item in items
+        if item.is_file()
+        and item.suffix.lower() in config.input.accepted_extensions
+        and not any(item.name.startswith(p) for p in config.input.ignore_filename_prefixes)
+    ]
+
+
+def _report_misplaced(
+    folder: Path, level: str, base: Path, config: Config, issues: IssueCollector
+) -> None:
+    """Excel files above the side-folder level are never read: say so instead of staying silent."""
+    names = _excel_names(folder, config)
+    if names:
+        issues.warning(
+            "misplaced_workbook",
+            f"{len(names)} Excel file(s) lie directly in the {level} folder and were not read: "
+            f"{', '.join(names)}. Workbooks are only read from side folders "
+            f"({EXPECTED_LAYOUT}).",
+            relative_path=folder.relative_to(base).as_posix(),
+        )
+
+
+def _report_nested(side_dir: Path, relative: str, config: Config, issues: IssueCollector) -> None:
+    """Excel files in sub-folders of a side folder are not read either."""
+    for sub in list_dirs(side_dir):
+        count = sum(
+            1
+            for item in sub.rglob("*")
+            if item.is_file()
+            and item.suffix.lower() in config.input.accepted_extensions
+            and not any(item.name.startswith(p) for p in config.input.ignore_filename_prefixes)
+        )
+        if count:
+            issues.warning(
+                "misplaced_workbook",
+                f"Sub-folder '{sub.name}' of this side folder holds {count} Excel file(s); "
+                f"sub-folders of a side folder are not read.",
+                relative_path=relative,
+            )
+
+
 def _side_candidates(
     side_dir: Path,
     context: WorkbookContext,
@@ -55,6 +104,7 @@ def _side_candidates(
     exclude: Path | None,
 ) -> list[Candidate]:
     relative = context.relative_folder
+    _report_nested(side_dir, relative, config, issues)
     try:
         files, not_matching = _workbooks(side_dir, config, exclude)
     except OSError as exc:
@@ -105,6 +155,7 @@ def _buildup_candidates(
     exclude: Path | None,
 ) -> list[Candidate]:
     candidates: list[Candidate] = []
+    _report_misplaced(hrm_dir, config.scope.machine_folder, base, config, issues)
     process_dirs = list_dirs(hrm_dir, issues)
     if not process_dirs:
         issues.warning(
@@ -114,6 +165,16 @@ def _buildup_candidates(
         )
     for process_dir in process_dirs:
         process_rel = process_dir.relative_to(base).as_posix()
+        _report_misplaced(process_dir, "process", base, config, issues)
+        if parse_panel(process_dir.name, config) is not None:
+            issues.error(
+                "missing_process_folder",
+                f"'{process_dir.name}' is a panel folder lying directly in "
+                f"'{config.scope.machine_folder}': the process folder is missing; skipped.",
+                field="Process",
+                relative_path=process_rel,
+            )
+            continue
         process, parsed = parse_process(process_dir.name, config)
         if not parsed:
             issues.warning(
@@ -133,6 +194,16 @@ def _buildup_candidates(
         for panel_dir in panel_dirs:
             panel_rel = panel_dir.relative_to(base).as_posix()
             panel = parse_panel(panel_dir.name, config)
+            if panel is None and parse_side(panel_dir.name, config) is not None:
+                issues.error(
+                    "missing_panel_folder",
+                    f"'{panel_dir.name}' is a side folder lying directly in the process "
+                    f"folder: the panel folder is missing; skipped.",
+                    field="Panel",
+                    relative_path=panel_rel,
+                )
+                continue
+            _report_misplaced(panel_dir, "panel", base, config, issues)
             if panel is None:
                 issues.error(
                     "invalid_panel_folder",

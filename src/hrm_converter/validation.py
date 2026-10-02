@@ -115,3 +115,81 @@ def find_conflicts(
             if normalize_key(stated) != normalize_key(context.part_number):
                 conflicts.append(Conflict("Part_Number", context.part_number, stated, "sheet name"))
     return conflicts
+
+
+EXPECTED_LAYOUT = "<Buildup>/HRM/<process>/Panel <n>/front|back|Coupon front|Coupon back/<file>"
+
+# Plain-language repair advice per issue category (the How_To_Fix column).
+FIX_HINTS: dict[str, str] = {
+    "missing_hrm_folder": "Create an 'HRM' folder inside this Buildup folder and move the HRM "
+    "process folders into it. Ignore this if the Buildup has no HRM measurements yet.",
+    "invalid_buildup_name": "Rename the folder that contains 'HRM' to a Buildup name such as "
+    "BU01 or BU-03.",
+    "duplicate_hrm_folder": "Keep one 'HRM' folder in this Buildup and merge the others into it.",
+    "empty_folder": "Add the missing sub-folders and workbooks, or delete the empty folder.",
+    "missing_process_folder": "Add a process folder between HRM and the panel folder, for "
+    "example HRM/post DDV_HRM-2026-0088/Panel 5.",
+    "missing_panel_folder": "Add a panel folder between the process folder and the side "
+    "folder, for example post DDV_HRM-2026-0088/Panel 5/front.",
+    "invalid_panel_folder": "Rename the folder to 'Panel <number>', for example 'Panel 5'.",
+    "invalid_side_folder": "Rename the folder to front, back, Coupon front or Coupon back.",
+    "misplaced_workbook": "Move the Excel file into its side folder: " + EXPECTED_LAYOUT + ".",
+    "no_workbook": "Put the HRM *_Summary.xlsx file into this side folder, or delete the folder.",
+    "multiple_workbooks": "Leave exactly one workbook in this side folder; move the others out.",
+    "filename_pattern": "Rename the file so it ends with _Summary.xlsx if it is the HRM summary; "
+    "otherwise leave it, it is ignored.",
+    "process_fallback": "Rename the process folder like 'post DDV_HRM-2026-0088' for a clean "
+    "Process name. Optional: the folder name is used as it is.",
+    "metadata_conflict": "The file name or sheet name contradicts the folder. Move the file to "
+    "the folder it belongs to, or rename the folder; if the folder is right, untick the "
+    "skip option (permissive mode).",
+    "unreadable_workbook": "Open the file in Excel and save it again as .xlsx, or export it "
+    "again from HRM. Remove any password.",
+    "unreadable_folder": "Check that you have permission to open this folder.",
+    "missing_feature_label": "Type the feature label (for example 'Pad 1') in column B of the "
+    "first row of the block.",
+    "new_feature_type": "Nothing to fix if the label is right. Add it to features.aliases in "
+    "config.yaml to stop this warning; correct a typo in the workbook otherwise.",
+    "header_order": "Nothing to fix in the data: names were assigned by position. Correct the "
+    "roughness header in the HRM template to stop this warning.",
+    "duplicate_metric_column": "Remove or rename the repeated column header in the block.",
+    "duplicate_measurement": "The same block label appears twice. Renumber one block "
+    "(for example Pad 1 and Pad 2) or delete the repeat.",
+    "value_without_header": "Add a header above the extra value column, or delete the values.",
+    "unrecognised_rows": "Remove title or comment rows, or ignore: they are not read.",
+    "unit_note": "Nothing to fix: the operator's note is only reported.",
+    "text_value": "Replace the text with a number, or empty the cell if it was not measured.",
+    "numeric_text": "Format the cell as a number (use a decimal point). The value was still read.",
+    "invalid_unit": "Write the unit in column A as 'Unit <number>'.",
+    "extra_sheets": "Only the first sheet is read. Move the summary to the first sheet if it "
+    "is not there.",
+    "duplicate_file_name": "Rename one of the files so every uploaded file has its own name.",
+    "reference_row": "Correct this row in the limits workbook.",
+    "reference_conflict": "Fill in one more key cell on one of the clashing limit rows so it "
+    "becomes the more specific one.",
+    "reference_unused": "Check the spelling of Feature_Type, Metric, Part_Number, Buildup and "
+    "Side on these limit rows.",
+}
+
+# Categories that mean "the folders or files are not laid out as expected".
+FOLDER_CATEGORIES = frozenset(
+    {
+        "missing_hrm_folder",
+        "invalid_buildup_name",
+        "duplicate_hrm_folder",
+        "empty_folder",
+        "missing_process_folder",
+        "missing_panel_folder",
+        "invalid_panel_folder",
+        "invalid_side_folder",
+        "misplaced_workbook",
+        "no_workbook",
+        "multiple_workbooks",
+        "metadata_conflict",
+        "unreadable_folder",
+    }
+)
+
+
+def fix_hint(category: str) -> str:
+    return FIX_HINTS.get(category, "")

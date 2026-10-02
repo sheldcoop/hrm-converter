@@ -27,7 +27,12 @@ if str(APP_DIR / "src") not in sys.path:
 from hrm_converter.config import Config, load_config  # noqa: E402
 from hrm_converter.logging_setup import close_logging, setup_logging  # noqa: E402
 from hrm_converter.models import OPEN_FILE_COLUMN, HrmConverterError, RunResult  # noqa: E402
-from hrm_converter.output_writer import issues_frame, long_frame, summary_frame  # noqa: E402
+from hrm_converter.output_writer import (  # noqa: E402
+    folder_check_frame,
+    issues_frame,
+    long_frame,
+    summary_frame,
+)
 from hrm_converter.pipeline import run_conversion, run_loose_files  # noqa: E402
 from hrm_converter.reference import load_reference, reference_template  # noqa: E402
 from hrm_converter.validation import IssueCollector  # noqa: E402
@@ -300,6 +305,19 @@ def render_summary(run: Run) -> None:
     ]
     for column, (label, value) in zip(st.columns(len(values)), values, strict=True):
         column.metric(label, f"{value:,}")
+    check = folder_check_frame(result)
+    if len(check):
+        bad = int((check["Verdict"] != "OK").sum())
+        st.subheader("Folder check")
+        if bad:
+            st.warning(
+                f"The folder structure needs fixing in {bad} of {len(check)} lot(s). The files "
+                f"that could be read were still converted. The **Issues** page says what to "
+                f"fix, folder by folder."
+            )
+        else:
+            st.success(f"The folder structure is fine in all {len(check)} lot(s).")
+        st.dataframe(showable(check), width="stretch", hide_index=True)
     st.subheader("Workbooks")
     st.dataframe(showable(summary_frame(result.file_results)), width="stretch", hide_index=True)
     render_downloads(run, "summary")

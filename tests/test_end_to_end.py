@@ -61,7 +61,7 @@ def test_project_run_writes_the_expected_workbook(hierarchy: FixtureInfo, config
     assert len(result.records) == EXPECTED_PROJECT_ROWS
 
     book = sheets(result.output_path)
-    assert list(book) == ["Long", "Processing_Summary", "Validation_Issues"]
+    assert list(book) == ["Long", "Processing_Summary", "Validation_Issues", "Folder_Check"]
     assert tuple(book["Long"].columns) == LONG_SHEET_COLUMNS
     assert all(set(book["Long"][c]) == {""} for c in LONG_LIMIT_COLUMNS)  # no reference given
     assert tuple(book["Processing_Summary"].columns) == SUMMARY_COLUMNS
