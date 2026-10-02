@@ -7,7 +7,9 @@ or by another front end.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
+from typing import IO
 
 from hrm_converter.config import Config
 from hrm_converter.discovery import discover
@@ -18,6 +20,7 @@ from hrm_converter.models import (
     LongRecord,
     RunResult,
     Status,
+    WorkbookContext,
     WorkbookReadError,
 )
 from hrm_converter.output_writer import resolve_output_path, write_output
@@ -124,5 +127,72 @@ def run_conversion(start_path: Path, config: Config) -> RunResult:
         len(result.records),
         result.warning_count,
         result.error_count,
+    )
+    return result
+
+
+LOOSE_FOLDER = "(loose file)"
+
+
+def run_loose_files(files: Sequence[tuple[str, Path | IO[bytes]]], config: Config) -> RunResult:
+    """Convert workbooks that are not in a folder hierarchy.
+
+    ``files`` holds (file name, path or open binary file). There are no folders
+    to read metadata from and nothing is guessed from the file name, so every
+    metadata column (Project_Name .. Location) is left blank for the user to
+    fill in. Unit, feature, metric, value and Source_File are filled as usual.
+    """
+    issues = IssueCollector()
+    output_path = (Path.cwd() / config.output.directory / config.output.filename).resolve()
+    blank = WorkbookContext(
+        project_name="",
+        part_number="",
+        lot_number="",
+        lot_name="",
+        buildup="",
+        process="",
+        process_folder="",
+        panel="",
+        side="",
+        location="",
+        folder=Path("."),
+        relative_folder=LOOSE_FOLDER,
+    )
+    result = RunResult(scope=None)
+    records: list[LongRecord] = []
+    seen: set[str] = set()
+
+    for name, source in files:
+        candidate = Candidate(Path(name), blank)
+        details = {"source_file": name, "relative_path": candidate.relative_path}
+        if name in seen:
+            reason = "Another file with the same name was already given; skipped."
+            issues.error("duplicate_file_name", reason, **details)
+            result.file_results.append(FileResult(candidate, Status.SKIPPED, reason, 0))
+            continue
+        seen.add(name)
+        try:
+            rows = transform(read_workbook(source), candidate, config, issues)
+        except WorkbookReadError as exc:
+            issues.error("unreadable_workbook", str(exc), **details)
+            result.file_results.append(FileResult(candidate, Status.SKIPPED, str(exc), 0))
+            continue
+        except Exception as exc:  # one malformed workbook must never stop the run
+            logger.exception("Unexpected problem in %s", name)
+            reason = f"Unexpected problem: {type(exc).__name__}: {exc}"
+            issues.error("unexpected_error", reason, **details)
+            result.file_results.append(FileResult(candidate, Status.SKIPPED, reason, 0))
+            continue
+        records.extend(rows)
+        result.file_results.append(FileResult(candidate, Status.PROCESSED, "", len(rows)))
+
+    result.records = sort_records(records)
+    result.issues = issues.reportable()
+    result.output_path = write_output(result, config, output_path)
+    logger.info(
+        "Finished loose files: %d processed, %d skipped, %d rows",
+        result.processed_count,
+        result.skipped_count,
+        len(result.records),
     )
     return result

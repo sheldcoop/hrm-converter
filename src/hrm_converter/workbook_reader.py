@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from pathlib import Path
+from typing import IO
 
 import openpyxl
 
@@ -109,7 +110,7 @@ def parse_rows(
     return tuple(b.build() for b in builders), tuple(stray)
 
 
-def read_workbook(path: Path) -> RawSheet:
+def read_workbook(path: Path | IO[bytes]) -> RawSheet:
     """Read the measurement blocks of the first sheet of an HRM workbook."""
     try:
         workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)

@@ -46,6 +46,27 @@ their measurements into one consolidated long-format Excel workbook.
    to the app (`hrm_long_format.xlsx`, `hrm_wide_format.xlsx`) and can be
    downloaded from the Long and Wide pages. Logs are in `logs`.
 
+### Loose Excel files (no folders)
+
+For workbooks that are not in the folder structure, choose **Loose Excel
+files** at the top of the sidebar, upload one or more workbooks and press
+**Convert**.
+
+- Unit, feature, metric, value, unit of measurement and `Source_File` are
+  filled as usual.
+- `Project_Name`, `Part_Number`, `Lot_Number`, `Lot_Name`, `Buildup`,
+  `Process`, `Panel`, `Side` and `Location` are **left blank**. Nothing is
+  guessed from the file name; fill them in yourself in Excel.
+- Units are written as plain numbers (`7`). The `C7` form needs a Coupon
+  folder to know the file is a coupon.
+- Several files stay apart through `Source_File`. Two uploads with the same
+  file name are refused, because their rows could not be told apart.
+- Limits still apply, but only reference rows whose Part_Number, Buildup and
+  Side cells are blank can match, since the data has none.
+
+Both the long and the wide workbook can be downloaded from the **Summary**
+page, and are saved in `output` as usual.
+
 To try it without real data, see
 [Demo project](#demo-project-for-a-manual-smoke-test) and
 [Stress project](#stress-project-many-files-many-problems).

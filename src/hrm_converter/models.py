@@ -142,7 +142,7 @@ class WorkbookContext:
     buildup: str
     process: str
     process_folder: str
-    panel: int
+    panel: int | str  # '' for loose files without a folder hierarchy
     side: str
     location: str
     folder: Path
@@ -200,7 +200,7 @@ class LongRecord:
     lot_name: str
     buildup: str
     process: str
-    panel: int
+    panel: int | str  # '' for loose files without a folder hierarchy
     side: str
     location: str
     unit: int | str
@@ -246,7 +246,7 @@ class FileResult:
 class RunResult:
     """Everything a run produced; consumed by the output writer and the CLI."""
 
-    scope: Scope
+    scope: Scope | None  # None for loose files without a folder hierarchy
     records: list[LongRecord] = field(default_factory=list)
     file_results: list[FileResult] = field(default_factory=list)
     issues: list[Issue] = field(default_factory=list)

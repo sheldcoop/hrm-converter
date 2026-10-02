@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 - 2026-10-02
+
+- App: **Loose Excel files** mode for workbooks outside the folder structure.
+  Measurements are converted as usual; the metadata columns are left blank.
+- App: both workbooks can be downloaded from the Summary page.
+- App runs under any Streamlit installation, accepts pasted paths in quotes,
+  and the Browse button uses the operating system's folder dialog.
+- README quick start; made-up stress project added under `test_data/`.
+
 ## 1.1.0 - 2026-10-02
 
 - Wide format: `python -m hrm_converter.wide` writes one sheet per feature type

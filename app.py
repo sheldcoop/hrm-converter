@@ -12,6 +12,7 @@ import dataclasses
 import io
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import pandas as pd
@@ -27,7 +28,7 @@ from hrm_converter.config import Config, load_config  # noqa: E402
 from hrm_converter.logging_setup import close_logging, setup_logging  # noqa: E402
 from hrm_converter.models import HrmConverterError, RunResult  # noqa: E402
 from hrm_converter.output_writer import issues_frame, long_frame, summary_frame  # noqa: E402
-from hrm_converter.pipeline import run_conversion  # noqa: E402
+from hrm_converter.pipeline import run_conversion, run_loose_files  # noqa: E402
 from hrm_converter.reference import load_reference, reference_template  # noqa: E402
 from hrm_converter.validation import IssueCollector  # noqa: E402
 from hrm_converter.wide import OUT_OF_SPEC, WideResult, build_wide, write_wide  # noqa: E402
@@ -36,6 +37,7 @@ STYLESHEET = APP_DIR / "assets" / "styles.css"
 OUT_OF_SPEC_STYLE = "background-color: rgba(243, 139, 168, 0.35); font-weight: bold"
 MAX_STYLED_ROWS = 5000
 VIEWS = ["Summary", "Long", "Wide", "Issues", "Reference"]
+MODE_FOLDER, MODE_LOOSE = "Folder", "Loose Excel files"
 _PICK_PROMPT = "Select a Project, Part Number, Lot or Buildup folder"
 _PICK_FOLDER = (
     "import tkinter as tk; from tkinter import filedialog; r = tk.Tk(); r.withdraw(); "
@@ -97,9 +99,17 @@ def browse_folder() -> None:
 
 
 def convert(
-    folder: str, lot_name: str, strict: bool, reference_file: object, reference_path: str = ""
+    folder: str,
+    lot_name: str,
+    strict: bool,
+    reference_file: object,
+    reference_path: str = "",
+    loose_files: Sequence[object] = (),
 ) -> Run:
-    """Run the conversion. Limits come from the upload, else the typed path, else the config."""
+    """Run the conversion. Limits come from the upload, else the typed path, else the config.
+
+    With ``loose_files`` (uploads) there is no folder: metadata columns stay blank.
+    """
     config = base_config()
     config = dataclasses.replace(
         config,
@@ -110,7 +120,14 @@ def convert(
     )
     log_path = setup_logging(config.logging.directory, config.logging.level)
     try:
-        result = run_conversion(Path(folder), config)
+        if loose_files:
+            uploads = [
+                (str(getattr(f, "name", "workbook.xlsx")), io.BytesIO(f.getvalue()))  # type: ignore[attr-defined]
+                for f in loose_files
+            ]
+            result = run_loose_files(uploads, config)
+        else:
+            result = run_conversion(Path(folder), config)
     finally:
         close_logging()
     result.log_path = log_path
@@ -196,18 +213,35 @@ def render_nav(options: list[str], state_key: str) -> str:
 def render_sidebar() -> None:
     config = base_config()
     with st.sidebar:
-        st.header("Source folder")
-        st.text_input(
-            "Project, Part Number, Lot or Buildup folder",
-            key="folder",
-            placeholder=r"L:\...\Chiplet4Future\FHR0020\19198",
+        st.header("Source")
+        mode = st.radio(
+            "Source",
+            [MODE_FOLDER, MODE_LOOSE],
+            key="mode",
+            horizontal=True,
+            label_visibility="collapsed",
         )
-        st.button("Browse…", on_click=browse_folder, key="browse")
-        if st.session_state.pop("browse_failed", False):
-            st.warning("The folder dialog could not be opened. Paste the folder path instead.")
+        if mode == MODE_LOOSE:
+            st.file_uploader(
+                "HRM workbooks",
+                type=["xlsx"],
+                accept_multiple_files=True,
+                key="loose_files",
+                help="For Excel files that are not in the folder structure. Project, part, lot, "
+                "Buildup, process, panel and side are left blank for you to fill in.",
+            )
+        else:
+            st.text_input(
+                "Project, Part Number, Lot or Buildup folder",
+                key="folder",
+                placeholder=r"L:\...\Chiplet4Future\FHR0020\19198",
+            )
+            st.button("Browse…", on_click=browse_folder, key="browse")
+            if st.session_state.pop("browse_failed", False):
+                st.warning("The folder dialog could not be opened. Paste the folder path instead.")
 
-        with st.expander("Job information", expanded=False):
-            st.text_input("Lot name", key="lot_name", value=config.metadata.default_lot_name)
+            with st.expander("Job information", expanded=False):
+                st.text_input("Lot name", key="lot_name", value=config.metadata.default_lot_name)
 
         st.header("Limits")
         st.file_uploader(
@@ -224,20 +258,27 @@ def render_sidebar() -> None:
             help="Use this when the reference file stays in one place; no upload needed.",
         )
 
-        st.header("Options")
-        st.checkbox(
-            "Skip files whose name contradicts their folder",
-            key="strict",
-            value=config.processing.strict_metadata_conflicts,
-            help="On: a workbook named BU03 / Back that sits in a BU01 / front folder is skipped. "
-            "Off: the folder is trusted and the disagreement is only reported.",
-        )
+        if mode == MODE_FOLDER:
+            st.header("Options")
+            st.checkbox(
+                "Skip files whose name contradicts their folder",
+                key="strict",
+                value=config.processing.strict_metadata_conflicts,
+                help="On: a workbook named BU03 / Back that sits in a BU01 / front folder is "
+                "skipped. Off: the folder is trusted and the disagreement is only reported.",
+            )
         st.button("Convert", type="primary", key="convert", width="stretch")
 
 
 def render_summary(run: Run) -> None:
     result = run.result
-    st.caption(f"{result.scope.role.value} folder: `{result.scope.start_path}`")
+    if result.scope is None:
+        st.caption(
+            "Loose Excel files: the metadata columns (Project_Name … Location) are blank. "
+            "Fill them in after downloading."
+        )
+    else:
+        st.caption(f"{result.scope.role.value} folder: `{result.scope.start_path}`")
     values = [
         ("HRM folders", result.hrm_folder_count),
         ("Processed", result.processed_count),
@@ -250,7 +291,28 @@ def render_summary(run: Run) -> None:
         column.metric(label, f"{value:,}")
     st.subheader("Workbooks")
     st.dataframe(showable(summary_frame(result.file_results)), width="stretch", hide_index=True)
+    render_downloads(run, "summary")
     st.caption(f"Saved: `{result.output_path}`  ·  `{run.wide_path}`  ·  log `{result.log_path}`")
+
+
+def render_downloads(run: Run, where: str) -> None:
+    """Both result workbooks, side by side."""
+    assert run.result.output_path is not None
+    left, right, _ = st.columns([1, 1, 2])
+    left.download_button(
+        "Download long workbook",
+        run.result.output_path.read_bytes(),
+        file_name=run.result.output_path.name,
+        key=f"download_long_{where}",
+        width="stretch",
+    )
+    right.download_button(
+        "Download wide workbook",
+        run.wide_path.read_bytes(),
+        file_name=run.wide_path.name,
+        key=f"download_wide_{where}",
+        width="stretch",
+    )
 
 
 def render_long(run: Run) -> None:
@@ -353,8 +415,12 @@ def main() -> None:
     render_sidebar()
 
     if st.session_state.get("convert"):
-        folder = str(st.session_state.get("folder") or "").strip().strip("\"'")
-        if not folder:
+        loose = st.session_state.get("mode") == MODE_LOOSE
+        loose_files = list(st.session_state.get("loose_files") or []) if loose else []
+        folder = "" if loose else str(st.session_state.get("folder") or "").strip().strip("\"'")
+        if loose and not loose_files:
+            st.error("Upload at least one Excel file first.")
+        elif not loose and not folder:
             st.error("Enter or browse to a folder first.")
         else:
             try:
@@ -365,6 +431,7 @@ def main() -> None:
                         bool(st.session_state.get("strict", True)),
                         st.session_state.get("reference"),
                         str(st.session_state.get("reference_path") or "").strip().strip("\"'"),
+                        loose_files,
                     )
             except HrmConverterError as exc:
                 st.session_state.pop("run", None)
@@ -372,7 +439,9 @@ def main() -> None:
 
     run: Run | None = st.session_state.get("run")
     if run is None:
-        st.info("Choose a folder in the sidebar and press **Convert**.")
+        st.info(
+            "Choose a folder (or upload loose Excel files) in the sidebar and press **Convert**."
+        )
         return
 
     view = render_nav(VIEWS, "view")

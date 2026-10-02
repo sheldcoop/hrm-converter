@@ -80,6 +80,7 @@ def _apply_overrides(config: Config, args: argparse.Namespace) -> Config:
 
 def format_summary(result: RunResult) -> str:
     """Concise completion summary; never contains measurement records."""
+    assert result.scope is not None  # the command line always converts a folder
     lines = [
         "",
         "HRM conversion finished",

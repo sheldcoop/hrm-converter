@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hrm-converter"
-version = "1.1.0"
+version = "1.2.0"
 description = "Converts HRM Excel summary files in an engineering folder hierarchy into one long-format dataset."
 readme = "README.md"
 requires-python = ">=3.10"
