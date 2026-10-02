@@ -330,3 +330,30 @@ def test_cli_reports_a_bad_folder_clearly(
     (tmp_path / "empty").mkdir()
     assert main(["--input", str(tmp_path / "empty"), "--output-dir", str(tmp_path / "o")]) == 1
     assert "No 'HRM' folder was found" in capsys.readouterr().err
+
+
+def test_open_file_link_sits_next_to_source_file(hierarchy: FixtureInfo, config: Config) -> None:
+    from hrm_converter.output_writer import OPEN_FILE_LABEL, open_file_link
+
+    result = run_conversion(hierarchy.buildup_a1_bu01, config)
+    assert result.output_path is not None
+    sheet = openpyxl.load_workbook(result.output_path)["Long"]
+    header = [cell.value for cell in sheet[1]]
+    source = header.index("Source_File")
+    assert header[source + 1] == "Open_File"
+
+    for row in sheet.iter_rows(min_row=2):
+        formula = row[source + 1].value
+        assert formula.startswith("=HYPERLINK(") and formula.endswith(f',"{OPEN_FILE_LABEL}")')
+        target = "".join(formula[len("=HYPERLINK(") : formula.rindex(",")].split('"&"')).strip('"')
+        assert Path(target).is_file() and Path(target).name == row[source].value
+        assert row[source + 1].font.underline == "single"
+
+    # Paths longer than Excel's 255-character literal limit are split, not cut.
+    long_path = "L:\\" + "\\".join(["a folder with a long name"] * 14) + '\\it"s.xlsx'
+    formula = open_file_link(long_path)
+    assert formula is not None and len(long_path) > 255
+    literals = formula[len("=HYPERLINK(") : formula.rindex(",")].split("&")
+    assert all(len(literal) <= 202 for literal in literals)
+    assert "".join(literal[1:-1] for literal in literals).replace('""', '"') == long_path
+    assert open_file_link("") is None  # uploads have no path to open

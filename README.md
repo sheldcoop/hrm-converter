@@ -309,8 +309,12 @@ you want, as the shipped `config.yaml` does.
 ## Long-format schema
 
 Sheet `Long`, these 16 columns in this order. One row is one metric value of
-one feature on one unit or coupon. They are followed by three limit columns,
-`LSL`, `Target` and `USL`: the limits that apply to that row, taken from the
+one feature on one unit or coupon. Next to `Source_File` comes `Open_File`: a
+clickable "📂 Open" cell that opens the source workbook the row came from. It
+holds the full path as it was at conversion time, so it works on a computer
+that sees the file under the same path (same drive letter or network share);
+it is blank for uploaded loose files, which have no path. After that come
+three limit columns, `LSL`, `Target` and `USL`: the limits that apply to that row, taken from the
 reference workbook. They are blank when no reference workbook is given or no
 row of it fits (see [Wide format and limits](#wide-format-and-limits) for the
 matching rules).

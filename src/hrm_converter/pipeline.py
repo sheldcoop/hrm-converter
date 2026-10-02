@@ -202,7 +202,8 @@ def run_loose_files(
     seen: set[str] = set()
 
     for name, source in files:
-        candidate = Candidate(Path(name), blank)
+        on_disk = isinstance(source, Path) and source.name == name
+        candidate = Candidate(source.resolve() if on_disk else Path(name), blank)  # type: ignore[union-attr]
         details = {"source_file": name, "relative_path": candidate.relative_path}
         if name in seen:
             reason = "Another file with the same name was already given; skipped."

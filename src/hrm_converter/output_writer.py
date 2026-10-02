@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import pandas as pd
+from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
@@ -17,6 +18,7 @@ from hrm_converter.hierarchy import is_machine_folder
 from hrm_converter.models import (
     ISSUE_COLUMNS,
     LONG_SHEET_COLUMNS,
+    OPEN_FILE_COLUMN,
     SUMMARY_COLUMNS,
     FileResult,
     Issue,
@@ -31,6 +33,9 @@ SUMMARY_SHEET = "Processing_Summary"
 ISSUES_SHEET = "Validation_Issues"
 _ILLEGAL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 _WIDTH_SAMPLE_ROWS = 500
+OPEN_FILE_LABEL = "\U0001f4c2 Open"
+_LINK_CHUNK = 200
+_LINK_FONT = Font(color="0563C1", underline="single")
 
 
 def resolve_output_path(config: Config, start_path: Path) -> Path:
@@ -58,13 +63,30 @@ def _frame(rows: Sequence[tuple[object, ...]], columns: tuple[str, ...]) -> pd.D
     return frame
 
 
+def open_file_link(path: str) -> str | None:
+    """Excel formula for a clickable cell that opens the source workbook.
+
+    Excel accepts at most 255 characters per text literal, so a long network
+    path is passed as several literals joined with ``&``.
+    """
+    if not path:
+        return None
+    chunks = [path[i : i + _LINK_CHUNK] for i in range(0, len(path), _LINK_CHUNK)]
+    location = "&".join('"' + chunk.replace('"', '""') + '"' for chunk in chunks)
+    return f'=HYPERLINK({location},"{OPEN_FILE_LABEL}")'
+
+
 def long_frame(
     records: list[LongRecord], limits: Sequence[LimitValues] | None = None
 ) -> pd.DataFrame:
-    """The Long sheet: the schema columns plus LSL / Target / USL (blank without limits)."""
+    """The Long sheet: schema columns, Open_File link, then LSL / Target / USL."""
     blank: LimitValues = (None, None, None)
     rows = [
-        (*record.as_row(), *(limits[position] if limits else blank))
+        (
+            *record.as_row(),
+            open_file_link(record.source_path),
+            *(limits[position] if limits else blank),
+        )
         for position, record in enumerate(records)
     ]
     return _frame(rows, LONG_SHEET_COLUMNS)
@@ -127,6 +149,15 @@ def format_sheet(sheet: Worksheet, frame: pd.DataFrame, table_name: str) -> None
         sheet.column_dimensions[get_column_letter(position)].width = min(max(longest + 4, 10), 70)
 
 
+def _style_links(sheet: Worksheet, column: int) -> None:
+    """Make the Open_File cells look like links, and keep the column narrow."""
+    letter = get_column_letter(column + 1)
+    sheet.column_dimensions[letter].width = 12
+    for (cell,) in sheet.iter_rows(min_row=2, min_col=column + 1, max_col=column + 1):
+        if cell.value:
+            cell.font = _LINK_FONT
+
+
 def write_output(result: RunResult, config: Config, path: Path) -> Path:
     """Write the three sheets as static values and return the workbook path."""
     frames = [
@@ -153,6 +184,8 @@ def write_output(result: RunResult, config: Config, path: Path) -> Path:
             for name, frame, table_name in frames:
                 frame.to_excel(writer, sheet_name=name, index=False)
                 format_sheet(writer.sheets[name], frame, table_name)
+                if OPEN_FILE_COLUMN in frame.columns:
+                    _style_links(writer.sheets[name], list(frame.columns).index(OPEN_FILE_COLUMN))
         os.replace(temporary, path)
     except OSError as exc:
         temporary.unlink(missing_ok=True)

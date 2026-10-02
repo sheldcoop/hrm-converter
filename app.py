@@ -26,7 +26,7 @@ if str(APP_DIR / "src") not in sys.path:
 
 from hrm_converter.config import Config, load_config  # noqa: E402
 from hrm_converter.logging_setup import close_logging, setup_logging  # noqa: E402
-from hrm_converter.models import HrmConverterError, RunResult  # noqa: E402
+from hrm_converter.models import OPEN_FILE_COLUMN, HrmConverterError, RunResult  # noqa: E402
 from hrm_converter.output_writer import issues_frame, long_frame, summary_frame  # noqa: E402
 from hrm_converter.pipeline import run_conversion, run_loose_files  # noqa: E402
 from hrm_converter.reference import load_reference, reference_template  # noqa: E402
@@ -340,8 +340,12 @@ def render_long(run: Run) -> None:
         shown = shown[shown["Feature_Type"].isin(features)]
     if buildups:
         shown = shown[shown["Buildup"].isin(buildups)]
-    st.caption(f"{len(shown):,} of {len(long):,} rows")
-    st.dataframe(showable(shown), width="stretch", hide_index=True)
+    st.caption(
+        f"{len(shown):,} of {len(long):,} rows. In the downloaded workbook, the "
+        f"{OPEN_FILE_COLUMN} column next to Source_File opens the source Excel file."
+    )
+    # A browser cannot open local files, so the link column is only in the workbook.
+    st.dataframe(showable(shown.drop(columns=[OPEN_FILE_COLUMN])), width="stretch", hide_index=True)
     assert run.result.output_path is not None
     st.download_button(
         "Download long workbook",

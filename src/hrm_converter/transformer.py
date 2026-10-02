@@ -259,6 +259,7 @@ class _FileTransformer:
                 value=value,
                 unit_of_measurement=column.unit,
                 source_file=self.candidate.path.name,
+                source_path=str(self.candidate.path) if self.candidate.path.is_absolute() else "",
             )
         )
 

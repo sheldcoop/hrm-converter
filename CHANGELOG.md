@@ -7,6 +7,8 @@
 - Long table: `LSL`, `Target` and `USL` columns after the 16 schema columns,
   filled from the reference workbook for folder runs and loose files alike
   (`--reference` on the command line).
+- Long table: `Open_File` column next to `Source_File`, a clickable link that
+  opens the source workbook.
 - App: both workbooks can be downloaded from the Summary page.
 - App runs under any Streamlit installation, accepts pasted paths in quotes,
   and the Browse button uses the operating system's folder dialog.

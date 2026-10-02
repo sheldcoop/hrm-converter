@@ -27,10 +27,12 @@ LONG_COLUMNS: tuple[str, ...] = (
     "Source_File",
 )
 
-# The Long sheet = the 16 schema columns, then the limits that apply to each value
-# (blank when no reference workbook was given or no row of it fits).
+# The Long sheet = the 16 schema columns, then a clickable link that opens the source
+# workbook, then the limits that apply to each value (blank when no reference workbook
+# was given or no row of it fits).
+OPEN_FILE_COLUMN = "Open_File"
 LONG_LIMIT_COLUMNS: tuple[str, ...] = ("LSL", "Target", "USL")
-LONG_SHEET_COLUMNS: tuple[str, ...] = LONG_COLUMNS + LONG_LIMIT_COLUMNS
+LONG_SHEET_COLUMNS: tuple[str, ...] = (*LONG_COLUMNS, OPEN_FILE_COLUMN, *LONG_LIMIT_COLUMNS)
 LimitValues = tuple[float | None, float | None, float | None]
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
@@ -216,6 +218,7 @@ class LongRecord:
     value: CellValue
     unit_of_measurement: str
     source_file: str
+    source_path: str = ""  # full path for the Open_File link; '' for uploads
 
     def as_row(self) -> tuple[CellValue, ...]:
         return (
