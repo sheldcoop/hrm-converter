@@ -36,10 +36,10 @@ STYLESHEET = APP_DIR / "assets" / "styles.css"
 OUT_OF_SPEC_STYLE = "background-color: rgba(243, 139, 168, 0.35); font-weight: bold"
 MAX_STYLED_ROWS = 5000
 VIEWS = ["Summary", "Long", "Wide", "Issues", "Reference"]
+_PICK_PROMPT = "Select a Project, Part Number, Lot or Buildup folder"
 _PICK_FOLDER = (
     "import tkinter as tk; from tkinter import filedialog; r = tk.Tk(); r.withdraw(); "
-    "r.attributes('-topmost', True); "
-    "print(filedialog.askdirectory(title='Select a Project, Part Number, Lot or Buildup folder'))"
+    f"r.attributes('-topmost', True); print(filedialog.askdirectory(title='{_PICK_PROMPT}'))"
 )
 
 
@@ -65,19 +65,35 @@ def base_config() -> Config:
     )
 
 
+def _picker_command() -> list[str]:
+    """The operating system's own folder dialog; Python's tkinter is only the fallback."""
+    if sys.platform == "darwin":
+        script = f'POSIX path of (choose folder with prompt "{_PICK_PROMPT}")'
+        return ["osascript", "-e", script]
+    if sys.platform == "win32":
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms; "
+            "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+            f"$d.Description = '{_PICK_PROMPT}'; "
+            "$t = New-Object System.Windows.Forms.Form; $t.TopMost = $true; "
+            "if ($d.ShowDialog($t) -eq 'OK') { Write-Output $d.SelectedPath }"
+        )
+        return ["powershell", "-NoProfile", "-STA", "-Command", script]
+    return [sys.executable, "-c", _PICK_FOLDER]
+
+
 def browse_folder() -> None:
     """Native folder dialog in a helper process (Streamlit itself cannot open one)."""
     try:
-        done = subprocess.run(
-            [sys.executable, "-c", _PICK_FOLDER], capture_output=True, text=True, timeout=600
-        )
+        done = subprocess.run(_picker_command(), capture_output=True, text=True, timeout=600)
     except (OSError, subprocess.SubprocessError):
         st.session_state["browse_failed"] = True
         return
-    if done.stdout.strip():
-        st.session_state["folder"] = done.stdout.strip()
-    elif done.returncode != 0:
-        st.session_state["browse_failed"] = True
+    chosen = done.stdout.strip()
+    if chosen:
+        st.session_state["folder"] = chosen.rstrip("/") if len(chosen) > 1 else chosen
+    elif done.returncode != 0 and "cancel" not in done.stderr.lower():
+        st.session_state["browse_failed"] = True  # closing the dialog is not a failure
 
 
 def convert(
